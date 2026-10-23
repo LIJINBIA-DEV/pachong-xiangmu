@@ -1,0 +1,18 @@
+[
+  {
+    "uid": "2945394960",
+    "nickname": "抚州资溪发布",
+    "verification": "资溪县融媒体中心",
+    "reason": "news_media_account",
+    "source": "https://jx.sina.com.cn/news/b/2020-12-21/detail-iiznezxs8036753.shtml",
+    "checked_at": "2026-10-10"
+  },
+  {
+    "uid": "2272985297",
+    "nickname": "北京科教_健康北京",
+    "verification": "BTV科教《健康北京》官方微博",
+    "reason": "account_blocklist_media",
+    "source": "https://www.sina.cn/media/2272985297",
+    "checked_at": "2026-10-13"
+  }
+]

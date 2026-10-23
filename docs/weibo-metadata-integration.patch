@@ -1,0 +1,477 @@
+--- a/api/services/data_browser.py
++++ b/api/services/data_browser.py
+@@ -220,6 +220,7 @@
+ 
+ 
+ def browse_posts(root, path, offset=0, limit=20, search='', status='all'):
++    from weibo_metadata import metadata_platform, metadata_view
+     notes, by_note = load_review_dataset(root, path)
+     counts = Counter(text(n.get('semantic_result')) for n in notes)
+     filtered = []
+@@ -243,6 +244,7 @@
+             'url': web_url(note.get('note_url') or note.get('url')),
+             'source_keyword': text(note.get('source_keyword')), 'status': note.get('semantic_result'),
+             'nickname': text(note.get('nickname')), 'published_at': text(note.get('create_date_time') or note.get('time')),
++            **metadata_view(note, metadata_platform(note, path)),
+             'evidence': text(note.get('semantic_evidence') or note.get('evidence_text')),
+             'evidence_source': text(note.get('evidence_source')),
+             'selection_origin': text(note.get('selection_origin')),
+--- a/api/services/review_export.py
++++ b/api/services/review_export.py
+@@ -1,4 +1,4 @@
+-"""Export only the nine requested delivery fields; preserve source and review data."""
++"""Export requested post metadata while preserving source and review data."""
+ from datetime import datetime
+ from io import BytesIO
+ from pathlib import Path
+@@ -10,8 +10,10 @@
+ 
+ from api.services.data_browser import load_review_dataset, text, web_url
+ from api.services.manual_review import annotations, note_key, image_download_problem
++from weibo_metadata import metadata_platform, metadata_view
+ 
+-HEADERS = ['编号', '平台', '原帖链接', '标题', '发布时间', '发布地点', '命中关键词', '发布内容', '与关键词一相关的评论']
++HEADERS = ['编号', '平台', '原帖链接', '标题', '发布时间', '地点（定位优先）', '命中关键词', '发布内容', '与关键词一相关的评论',
++           '账号昵称', '账号 ID', '账号主页链接', '认证说明', '性别', 'IP 属地', '地点来源']
+ TIMEZONE = ZoneInfo('Asia/Shanghai')
+ PLATFORMS = {'wb': '微博', 'weibo': '微博', 'xhs': '小红书', 'dy': '抖音', 'douyin': '抖音',
+     'ks': '快手', 'kuaishou': '快手', 'bili': '哔哩哔哩', 'bilibili': '哔哩哔哩', 'tieba': '百度贴吧', 'zhihu': '知乎'}
+@@ -134,10 +136,14 @@
+         entry = review['entries'][note_key(note)]
+         image_count += sum(entry['images'].get(img['key']) == 'qualified' and not image_download_problem(root, img) for img in entry['review_images'])
+         nid = text(note.get('note_id') or note.get('aweme_id'))
++        metadata = metadata_view(note, metadata_platform(note, path))
+         sheet.append([index, _platform(note, path), web_url(note.get('note_url') or note.get('url')) or '未采集原帖链接',
+             text(note.get('title') or note.get('note_title')).strip() or '未采集独立标题',
+-            _published(note), _location(note), text(note.get('source_keyword')),
+-            text(note.get('content') or note.get('desc')), _related_comments(note, comments.get(nid, []))])
++            _published(note), metadata['display_location'], text(note.get('source_keyword')),
++            text(note.get('content') or note.get('desc')), _related_comments(note, comments.get(nid, [])),
++            text(note.get('nickname')) or '未获取', metadata['account_id'] or '未获取',
++            metadata['profile_url'] or '未获取', metadata['verification'], metadata['gender'],
++            metadata['post_ip_region'] or '未获取', metadata['location_source']])
+         # Keep all crawled text literal, including strings beginning with '='.
+         for cell in sheet[sheet.max_row]:
+             if isinstance(cell.value, str):
+@@ -176,7 +182,7 @@
+         cell.fill = PatternFill('solid', fgColor='0F172A')
+         cell.font = Font(color='FFFFFF', bold=True)
+         cell.alignment = Alignment(wrap_text=True, vertical='center')
+-    for index, width in enumerate([10, 12, 45, 28, 24, 24, 22, 70, 70], 1):
++    for index, width in enumerate([10, 12, 45, 28, 24, 30, 22, 70, 70, 24, 25, 45, 35, 12, 20, 18], 1):
+         sheet.column_dimensions[get_column_letter(index)].width = width
+     output = BytesIO()
+     book.save(output)
+--- a/semantic_filter.py
++++ b/semantic_filter.py
+@@ -492,6 +492,13 @@
+         key = (note_id, query)
+         if not note_id:
+             return
++        from weibo_metadata import reconcile_metadata
++        note = dict(note)
++        siblings = [self.states[k] for k in self.note_keys.get(note_id, ())]
++        changed = {id(saved) for saved in reconcile_metadata(note, [state.note for state in siblings])}
++        for state in siblings:
++            if id(state.note) in changed:
++                self._checkpoint(state)
+         self.active_keys.add(key)
+         if key in self.states:
+             old = self.states[key]
+--- a/tests/test_review_export.py
++++ b/tests/test_review_export.py
+@@ -53,13 +53,13 @@
+     book = load_workbook(BytesIO(response.content))
+     assert book.sheetnames == ['审核结果', '评论明细']
+     posts = book['审核结果']
+-    assert posts.max_row == 2 and posts.max_column == 9
++    assert posts.max_row == 2 and posts.max_column == 16
+     row = dict(zip([c.value for c in posts[1]], [c.value for c in posts[2]]))
+     assert list(row) == HEADERS
+     assert row['发布内容'] == '=dangerous text'
+     assert posts.cell(2, [c.value for c in posts[1]].index('发布内容') + 1).data_type == 's'
+     assert row['编号'] == 1 and row['平台'] == '微博'
+-    assert row['标题'] == '未采集独立标题' and row['发布地点'] == '未采集发布地点'
++    assert row['标题'] == '未采集独立标题' and row['地点（定位优先）'] == '未获取'
+     assert 'image_list' not in row and 'image_names' not in row
+     assert 'bad.jpg' not in '\n'.join(str(c.value) for s in book for row in s for c in row)
+     book.close()
+@@ -121,10 +121,10 @@
+     assert response.status_code==200
+     book=load_workbook(BytesIO(response.content))
+     for sheet in book:
+-        assert all(not re.search('[A-Za-z]',cell.value) for cell in sheet[1])
++        assert all(not re.search('[A-Za-z]', cell.value.replace('ID', '').replace('IP', '')) for cell in sheet[1])
+     sheet=book['审核结果']
+     row=dict(zip([c.value for c in sheet[1]],[c.value for c in sheet[2]]))
+-    assert list(row) == HEADERS and sheet.max_column==9
++    assert list(row) == HEADERS and sheet.max_column==16
+     assert '【原昵称】可爱，Hello world' in row['与关键词一相关的评论']
+     assert '看着很可爱' in row['与关键词一相关的评论']
+     assert '公园天气很好' not in row['与关键词一相关的评论']
+--- a/tests/test_review_package.py
++++ b/tests/test_review_package.py
+@@ -62,7 +62,7 @@
+             assert len(images) == 1 and images[0].endswith('/one/good.jpg')
+             assert archive.read(images[0]) == (media / 'good.jpg').read_bytes()
+             book = load_workbook(BytesIO(archive.read('审核结果.xlsx')))
+-            assert book['审核结果'].max_column == 9
++            assert book['审核结果'].max_column == 16
+             assert book['审核结果'].cell(2, 8).value == '=literal'
+             assert book['图片对应表'].cell(2, 5).value == images[0]
+             assert '待审核帖子：1' in archive.read('导出说明.txt').decode('utf-8-sig')
+--- a/tests/test_weibo_account_blocklist.py
++++ b/tests/test_weibo_account_blocklist.py
+@@ -110,6 +110,7 @@
+     blocked['mblog']['user']['id'] = listed_uid('government')
+     crawler = core.WeiboCrawler()
+     monkeypatch.setattr(core.config, 'WEIBO_SPECIFIED_ID_LIST', ['blocked', 'good'])
++    crawler.wb_client = SimpleNamespace()
+     crawler.get_note_info_task = AsyncMock(side_effect=[blocked, raw_note('good', '小张')])
+     crawler.batch_get_notes_comments = AsyncMock()
+     crawler.download_media = AsyncMock()
+--- a/tests/test_weibo_account_filter.py
++++ b/tests/test_weibo_account_filter.py
+@@ -217,6 +217,7 @@
+     from media_platform.weibo import core
+     monkeypatch.setattr(core.config, 'WEIBO_SPECIFIED_ID_LIST', ['media', 'personal'])
+     crawler = core.WeiboCrawler()
++    crawler.wb_client = SimpleNamespace()
+     crawler.get_note_info_task = AsyncMock(side_effect=[raw_note('media', '某地媒体'), raw_note('personal', '小张')])
+     crawler.batch_get_notes_comments = AsyncMock()
+     crawler.download_media = AsyncMock()
+--- a/tests/test_weibo_account_identity.py
++++ b/tests/test_weibo_account_identity.py
+@@ -99,7 +99,9 @@
+     monkeypatch.setattr(core.weibo_store, 'update_weibo_note', saved)
+     await crawler.search()
+     assert crawler.batch_get_notes_full_text.await_args.args[0] == [good]
+-    saved.assert_awaited_once_with(good)
++    saved.assert_awaited_once()
++    assert saved.await_args.args[0]['mblog'] == good['mblog']
++    assert saved.await_args.args[0]['_metadata_status']['detail'] == 'unavailable'
+     crawler.download_media.assert_awaited_once_with(good['mblog'])
+     crawler.batch_get_notes_comments.assert_awaited_once_with(['good'])
+     records = list((tmp_path / '.account-audit/events').glob('*.json'))
+--- a/webui/src/components/data/DataBrowser.tsx
++++ b/webui/src/components/data/DataBrowser.tsx
+@@ -7,6 +7,7 @@
+ import { Button } from '@/components/ui/button'
+ import { Input } from '@/components/ui/input'
+ import type { BrowsePost } from '@/types/dataBrowser'
++import { PostAccountMetadata, PostLocationMetadata } from './PostMetadata'
+ 
+ function Highlight({ value, query }: { value: string; query: string }) {
+   const terms = query.split(/\s+/).filter(Boolean).sort((a, b) => b.length - a.length)
+@@ -51,6 +52,8 @@
+           {post.nickname && <span>{post.nickname}</span>}
+         </div>
+         {post.status === 'matched' && <p className="text-xs leading-6 text-cyber-text-secondary">{t('browse.manualReviewHint')}{post.jev_original_choice && ` · ${t('browse.originalDecision', { choice: t(`browse.modelChoice.${post.jev_original_choice}`, { defaultValue: post.jev_original_choice }) })}`}</p>}
++        <PostAccountMetadata post={post} />
++        <PostLocationMetadata post={post} />
+         <h3 className="break-words text-xl font-semibold leading-relaxed text-cyber-text-primary">{post.title || t('browse.noTitle')}</h3>
+         {post.url ? <a href={post.url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-start gap-2 break-all text-sm text-cyber-neon-cyan underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyber-neon-cyan"><ExternalLink className="mt-0.5 h-4 w-4 shrink-0" />{post.url}</a>
+           : <p className="text-sm text-cyber-text-secondary">{t('browse.noLink')}</p>}
+--- a/webui/src/components/data/ManualReviewPage.css
++++ b/webui/src/components/data/ManualReviewPage.css
+@@ -29,7 +29,7 @@
+ .manual-review-page .review-choice-icon { width: 36px; padding: 0; }
+ .review-account-panel .review-choice:not(.review-choice-icon) { width: 132px; padding: 0 4px; border-radius: 10px; }
+ .review-account-panel .review-choice-icon { width: 32px; min-width: 32px; border-radius: 10px; }
+-.review-account-panel .review-choices { flex-wrap: nowrap; }
++.review-account-panel .review-choices { flex-wrap: wrap; }
+ .manual-review-page mark { color: rgb(var(--cyber-neon-cyan)); background: transparent; padding: 0; }
+ .review-state { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; height: 24px; border-radius: 6px; padding: 2px 8px; font-size: 12px; line-height: 18px; color: rgb(var(--cyber-text-secondary)); background: rgb(var(--cyber-bg-secondary)); }
+ .review-account-panel .review-state { min-width: 68px; }
+--- a/webui/src/components/data/ManualReviewPage.tsx
++++ b/webui/src/components/data/ManualReviewPage.tsx
+@@ -12,6 +12,7 @@
+ import { reviewSaveOptions } from '@/lib/reviewSave'
+ import type { SavedReviewChange } from '@/lib/reviewSave'
+ import { KeywordHighlight } from './KeywordHighlight'
++import { PostAccountMetadata, PostLocationMetadata } from './PostMetadata'
+ import { SupplementPanel } from './SupplementPanel'
+ import { ImageSubjectPanel } from './ImageSubjectPanel'
+ import { Button } from '@/components/ui/button'
+@@ -222,12 +223,14 @@
+             <section className="review-account-panel" aria-label={t('accountReview')}>
+               <div className="review-panel-heading"><h2><ReviewIcon name="account" />{t('accountReview')}</h2><span title={entry.account_identity_evidence || undefined} className={`review-state ${entry.account === 'non_marketing' ? 'review-state-positive' : entry.account === 'marketing' ? 'review-state-negative' : ''}`}>{t(entry.account === 'non_marketing' ? 'accountPassed' : entry.account === 'marketing' ? 'accountRejected' : 'unmarked')}</span></div>
+               <p className="review-account-name">{post.nickname || t('unknownAccount')}</p>
++              <PostAccountMetadata post={post} />
+               <Choices value={entry.account} positive={t('personalAccount')} negative={t('nonPersonalAccount')} disabled={save.isPending || !!entry.account_rejection_reason} onChange={(value) => change('account', value)} />
+               <p className="review-account-hint">{t(entry.account_scope === 'batch_account' ? 'accountBatchScope' : 'accountPostScope')}</p>
+             </section>
+             <section className="review-post-panel" aria-label={t('keywordContent')}>
+               <div className="review-panel-heading"><h2>{t('postContent')}</h2>{post.url && <a href={post.url} target="_blank" rel="noopener noreferrer" className="review-link"><ReviewIcon name="external" />{t('openOriginal')}</a>}</div>
+               <div className="review-keyword-row"><span>{t('matchedKeywords')}</span><span className="review-keyword-tag">{post.source_keyword}</span></div>
++              <PostLocationMetadata post={post} />
+               <p className="review-body-label">{t('bodySource')}</p><p className="review-body"><KeywordHighlight value={post.content || td('browse.noContent')} query={post.source_keyword} /></p>
+               {!!post.hit_comments.length && <ul className="mt-4 space-y-4">{post.hit_comments.map((comment) => <li key={comment.id + comment.content}><p className="review-body-label">{t('commentSource')} · {comment.nickname} · {td(comment.kind === 'semantic' ? 'browse.semanticHit' : 'browse.keywordHit')}</p><p className="review-comments"><KeywordHighlight value={comment.content} query={post.source_keyword} /></p></li>)}</ul>}
+               {!!post.comments.length && <details className="review-post-details"><summary>{td('browse.allComments', { count: post.comments.length })}</summary><ul className="mt-2 space-y-3">{post.comments.map((comment) => <li key={comment.id + comment.content} className="review-comments"><KeywordHighlight value={comment.content} query={post.source_keyword} /></li>)}</ul></details>}
+--- a/webui/src/types/dataBrowser.ts
++++ b/webui/src/types/dataBrowser.ts
+@@ -16,6 +16,14 @@
+   status: string
+   nickname: string
+   published_at: string
++  account_id?: string
++  profile_url?: string
++  gender?: string
++  verification?: string
++  publish_location?: string
++  post_ip_region?: string
++  display_location?: string
++  location_source?: string
+   evidence: string
+   evidence_source: string
+   selection_origin?: string
+--- a/media_platform/weibo/core.py
++++ b/media_platform/weibo/core.py
+@@ -303,6 +303,7 @@
+                     for note_item in batch:
+                         if semantic_mode and retained_count >= target_count:
+                             break
++                        note_item = await self.prepare_note(note_item)
+                         mblog = note_item["mblog"]
+                         diagnostics['evaluated'] += 1
+                         await weibo_store.update_weibo_note(note_item)
+@@ -399,6 +400,7 @@
+                 if account_reason:
+                     weibo_store.log_account_exclusion((note_item.get('mblog') or {}).get('user') or {}, (note_item.get('mblog') or {}).get('id'))
+                     continue
++                note_item = await self.prepare_note(note_item)
+                 await weibo_store.update_weibo_note(note_item)
+                 mblog = note_item.get("mblog")
+                 if mblog:
+@@ -416,6 +418,8 @@
+         async with semaphore:
+             try:
+                 result = await self.wb_client.get_note_info_by_id(note_id)
++                if result and result.get('mblog'):
++                    result['_metadata_status'] = {'detail': 'available'}
+ 
+                 # Sleep after fetching note details
+                 await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+@@ -597,6 +601,7 @@
+                     note_list = [item for item in note_list if not weibo_store.account_filter_reason((item.get("mblog") or {}).get("user"))]
+                     # If full text fetching is enabled, batch get full text first
+                     updated_note_list = await self.batch_get_notes_full_text(note_list)
++                    updated_note_list = [await self.prepare_note(item) for item in updated_note_list]
+                     await weibo_store.batch_update_weibo_notes(updated_note_list)
+                     for note_item in updated_note_list:
+                         mblog = (note_item or {}).get("mblog")
+@@ -699,6 +704,15 @@
+             chromium = playwright.chromium
+             return await self.launch_browser(chromium, playwright_proxy, user_agent, headless)
+ 
++    async def prepare_note(self, note_item: Dict) -> Dict:
++        """Enrich only newly collected, eligible posts before they are saved."""
++        from .metadata import MetadataEnricher
++        if weibo_store.account_filter_reason((note_item.get('mblog') or {}).get('user')):
++            return note_item
++        if not hasattr(self, '_metadata_enricher'):
++            self._metadata_enricher = MetadataEnricher(self.wb_client, config.CRAWLER_MAX_SLEEP_SEC)
++        return await self._metadata_enricher.enrich(note_item)
++
+     async def get_note_full_text(self, note_item: Dict) -> Dict:
+         """
+         Get full text content of a post
+@@ -725,20 +739,25 @@
+             return note_item
+ 
+         full_text_available = False
++        note_item.setdefault('_metadata_status', {})['detail'] = 'unavailable'
+         try:
+             utils.logger.info(f"[WeiboCrawler.get_note_full_text] Fetching full text for note: {note_id}")
+             full_note = await self.wb_client.get_note_info_by_id(note_id)
+             if full_note and full_note.get("mblog"):
+-                # Replace original content with complete content
+-                note_item["mblog"] = full_note["mblog"]
+-                full_text_available = True
++                from .metadata import merge_detail
++                note_item["mblog"] = merge_detail(mblog, full_note["mblog"])
++                full_text_available = (str(full_note['mblog'].get('id')) == str(note_id)
++                                       and len(full_note['mblog'].get('text') or '') >= len(mblog.get('text') or ''))
++                note_item['_metadata_status']['detail'] = 'available' if full_text_available else 'unavailable'
+                 utils.logger.info(f"[WeiboCrawler.get_note_full_text] Successfully fetched full text for note: {note_id}")
+ 
+             # Sleep after request to avoid rate limiting
+             await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+         except DataFetchError as ex:
++            note_item['_metadata_status']['detail'] = 'failed'
+             utils.logger.error(f"[WeiboCrawler.get_note_full_text] Failed to fetch full text for note {note_id}: {ex}")
+         except Exception as ex:
++            note_item['_metadata_status']['detail'] = 'failed'
+             utils.logger.error(f"[WeiboCrawler.get_note_full_text] Unexpected error for note {note_id}: {ex}")
+ 
+         if not full_text_available:
+--- a/store/excel_store_base.py
++++ b/store/excel_store_base.py
+@@ -339,6 +339,27 @@
+             data: Data dictionary
+             headers: List of header names (defines column order)
+         """
++        # A later post can carry additional metadata. Keep existing columns in
++        # place and append new ones, rather than writing by each row's key order.
++        existing = [cell.value for cell in sheet[1] if cell.value is not None]
++        headers = list(dict.fromkeys([*existing, *headers]))
++        if headers != existing:
++            self._write_headers(sheet, headers)
++        if sheet is self.contents_sheet and data.get('metadata_version') and 'note_id' in headers:
++            from weibo_metadata import reconcile_metadata
++            id_column = headers.index('note_id')
++            prior = [(row, dict(zip(headers, (cell.value for cell in row))))
++                     for row in sheet.iter_rows(min_row=2)
++                     if str(row[id_column].value) == str(data.get('note_id'))]
++            changed = {id(record) for record in reconcile_metadata(data, [record for _, record in prior])}
++            for row, record in prior:
++                if id(record) not in changed:
++                    continue
++                for cell, header in zip(row, headers):
++                    if cell.value != record.get(header):
++                        cell.value = record.get(header)
++                        if isinstance(cell.value, str):
++                            cell.data_type = 's'
+         row_num = sheet.max_row + 1
+ 
+         for col_num, header in enumerate(headers, 1):
+@@ -351,6 +372,8 @@
+                 value = ""
+ 
+             cell = sheet.cell(row=row_num, column=col_num, value=value)
++            if isinstance(value, str):
++                cell.data_type = 's'
+ 
+             # Apply basic formatting
+             cell.alignment = Alignment(vertical="top", wrap_text=True)
+@@ -371,8 +394,8 @@
+         if self.semantic_stream:
+             await self.semantic_stream.add_note(content_item)
+             key = (str(content_item.get("note_id") or ""), str(content_item.get("source_keyword") or ""))
+-            self._semantic_pending_notes[key] = dict(content_item)
+             restored = self.semantic_stream.states.get(key)
++            self._semantic_pending_notes[key] = dict(restored.note if restored else content_item)
+             if restored and getattr(restored, "comments", None):
+                 self._semantic_pending_comments.setdefault(key[0], []).extend(restored.comments)
+             return
+@@ -456,6 +479,17 @@
+                     saved_sheet, saved_row = location
+                     sheet = self.workbook[saved_sheet]
+                     headers = {cell.value: cell.column for cell in sheet[1]}
++                    from weibo_metadata import refresh_metadata
++                    saved = {name: sheet.cell(saved_row, column).value for name, column in headers.items()}
++                    if refresh_metadata(saved, state.note):
++                        for name, value in saved.items():
++                            if name not in headers:
++                                headers[name] = len(headers) + 1
++                                sheet.cell(1, headers[name], name)
++                            cell = sheet.cell(saved_row, headers[name])
++                            cell.value = value
++                            if isinstance(value, str):
++                                cell.data_type = 's'
+                     for name in ('comments_collected_count', 'comments_collection_complete', 'comments_collection_stop_reason'):
+                         if name in headers:
+                             sheet.cell(saved_row, headers[name], state.note.get(name))
+@@ -463,6 +497,8 @@
+             note = self._semantic_pending_notes.get(key)
+             if note is None:
+                 continue
++            from weibo_metadata import refresh_metadata
++            refresh_metadata(note, state.note)
+             # Keep the decision beside the note ID in the primary workbook so
+             # a retained "review" row cannot be mistaken for a Jev "keep".
+             annotated_note = {
+--- a/store/weibo/__init__.py
++++ b/store/weibo/__init__.py
+@@ -30,6 +30,7 @@
+ from tools.user_hash import anonymize_user_id
+ from weibo_account_filter import account_filter_reason, blocked_uid_reason, load_blocklist, identity_fields, log_account_exclusion
+ from var import source_keyword_var
++from weibo_metadata import stored_metadata
+ 
+ from ._store_impl import *
+ 
+@@ -94,8 +95,7 @@
+             return
+     content_text = mblog.get("text")
+     clean_text = re.sub(r"<.*?>", "", content_text)
+-    # 原始 user_id 匿名化为 creator_hash；公开昵称完整保留，供人工账号审核。
+-    # 不采集头像/主页链接/性别/IP 归属地等可定位真人的信息。
++    # 保留匿名审核关联，同时保存用户要求的公开帖子元信息。
+     save_content_item = {
+         # Weibo information
+         "note_id": note_id,
+@@ -114,6 +114,7 @@
+         "creator_hash": anonymize_user_id(user_info.get("idstr") or user_info.get("id")),
+         "nickname": user_info.get("screen_name") or "",
+         "source_keyword": source_keyword_var.get(),
++        **stored_metadata(mblog, note_item.get('_metadata_status')),
+         **identity_fields(user_info),
+     }
+     if note_item.get("_semantic_full_text_incomplete"):
+--- a/tests/test_weibo_no_user_info.py
++++ b/tests/test_weibo_no_user_info.py
+@@ -135,8 +135,13 @@
+     assert captured, "FakeStore 未捕获到 note dict"
+ 
+     # 1. 不含任何禁用字段键
+-    hit = set(captured.keys()) & FORBIDDEN_KEYS
++    hit = set(captured.keys()) & (FORBIDDEN_KEYS - {"gender", "profile_url"})
+     assert not hit, f"note 存储 dict 仍含禁用字段键: {hit}"
++
++    # 新需求允许帖子作者的公开性别、主页及 ID；评论者保持原有范围。
++    assert captured["gender"] == "女"
++    assert captured["account_id"] == str(RAW_USER_ID)
++    assert captured["post_ip_region"] == ""  # 不能从作者 IP 属地推断发帖属地。
+ 
+     # 2. creator_hash 存在、是 16 位 hex、不等于原始 user id
+     creator_hash = captured.get("creator_hash")
+@@ -222,7 +227,7 @@
+     captured_note = dict(fake.captured_content)
+     captured_comment = dict(fake.captured_comment)
+     assert captured_note and captured_comment
+-    assert not (set(captured_note) & FORBIDDEN_KEYS)
++    assert not (set(captured_note) & (FORBIDDEN_KEYS - {"gender", "profile_url"}))
+     assert not (set(captured_comment) & FORBIDDEN_KEYS)
+ 
+     # ---- 2. SQLite 内存库,建 weibo 两张表 ----
+--- a/webui/src/i18n/locales/en-US/data.json
++++ b/webui/src/i18n/locales/en-US/data.json
+@@ -124,5 +124,17 @@
+     "conflict": "A file already exists at the original path. Resolve the name conflict before restoring.",
+     "inUse": "The file could not be changed. Close any program using it and retry.",
+     "error": "The operation failed and the file was preserved. Check that the backend is updated and retry."
++  },
++  "metadata": {
++    "account": "Account details",
++    "accountId": "Account ID",
++    "gender": "Gender",
++    "verification": "Verification",
++    "homepage": "Profile",
++    "openHomepage": "Open profile",
++    "location": "Location (post location first)",
++    "source": "Location source",
++    "ipRegion": "IP region",
++    "missing": "Not available"
+   }
+ }
+--- a/webui/src/i18n/locales/zh-CN/data.json
++++ b/webui/src/i18n/locales/zh-CN/data.json
+@@ -124,5 +124,17 @@
+     "conflict": "原位置已有同名文件，请先处理同名文件，再恢复。",
+     "inUse": "文件暂时无法操作，可能正被其他程序占用。关闭文件后重试。",
+     "error": "操作失败，文件已保留。请确认后端已更新，然后重试。"
++  },
++  "metadata": {
++    "account": "账号资料",
++    "accountId": "账号 ID",
++    "gender": "性别",
++    "verification": "认证说明",
++    "homepage": "账号主页",
++    "openHomepage": "打开账号主页",
++    "location": "地点（定位优先）",
++    "source": "地点来源",
++    "ipRegion": "IP 属地",
++    "missing": "未获取"
+   }
+ }

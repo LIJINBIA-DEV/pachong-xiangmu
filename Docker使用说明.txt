@@ -1,0 +1,23 @@
+MediaCrawler Docker 部署版
+
+只需要单个镜像包：按 docker/IMAGE-ONLY.md 导入 mediacrawler-20261020-proxy-fix2-amd64.tar 并创建容器。
+镜像标签为 mediacrawler-portable:20261020-proxy-fix2，修复微博图片解析及详情图片补全，并保留 Linux 网页保存密钥功能。
+新镜像已内置 Mihomo，在工作台“配置 → Jev 专用代理”填写订阅并选择节点；不用另外安装 Clash。
+以下是需要从源码构建时的可选方式：
+
+1. 安装并启动 Docker（Windows/Mac 使用 Docker Desktop 的 Linux 容器）。
+2. 解压源码部署包。若下载了 mediacrawler-20261020-proxy-fix2-amd64.tar，可先按单镜像部署说明导入；如需脚本自动导入，将文件命名为 mediacrawler-image.tar，放到 MediaCrawler 文件夹内或它的上一级，不要解压 tar。
+3. Windows 双击「启动Docker.cmd」；Linux/macOS 在项目目录执行 sh 启动Docker.sh。
+4. 首次生成 .env.portable。填入自己的硅基流动与 Jev 密钥，再次运行启动脚本。
+5. 打开 http://127.0.0.1:18180 。选服务器版扫码登录，需要验证时点「打开登录浏览器」。浏览器密码在 .env.portable 的 BROWSER_PASSWORD 中。
+
+预构建镜像为 linux/amd64，供常见 Intel/AMD 64 位机器使用。
+ARM64 机器使用源码构建，当前未做 ARM 实机验收；不要导入 amd64 镜像冒充原生 ARM 版。
+Windows 云电脑还需支持 Docker 所需虚拟化。
+
+数据与人工审核结果保存在 Docker 命名卷中，不在镜像里。
+停止容器不会删除数据。不要执行带 -v 的 compose down，也不要删除数据卷。
+.env.portable 是私人配置，不要把填写后的文件再发给别人。
+
+详细配置、局域网访问、代理、升级和备份说明：docker/PORTABLE.md
+实测范围：docker/PORTABLE-VALIDATION.md

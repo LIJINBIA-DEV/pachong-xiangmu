@@ -1,0 +1,30 @@
+{
+  "source": "https://github.com/mengxiao2000/pybotfinder",
+  "commit": "0c20bdbad857b0eb4c8125debc3988b38428a825",
+  "downloaded_at": "2026-10-09T03:10:06.451922+00:00",
+  "files": [
+    {
+      "file": "bot.txt",
+      "url": "https://raw.githubusercontent.com/mengxiao2000/pybotfinder/0c20bdbad857b0eb4c8125debc3988b38428a825/account_list/bot.txt",
+      "lines": 4994,
+      "unique_ids": 4994,
+      "sha256": "82db00e92abb2dbbe088d35512b560690aeb3999dd573fbe656fae8fcb06295e"
+    },
+    {
+      "file": "media.txt",
+      "url": "https://raw.githubusercontent.com/mengxiao2000/pybotfinder/0c20bdbad857b0eb4c8125debc3988b38428a825/account_list/media.txt",
+      "lines": 781,
+      "unique_ids": 781,
+      "sha256": "217f8d804f2762d916a8dd2d4b5e7b13c0ba88fa84ffdd9c99d9d9f0218a1350"
+    },
+    {
+      "file": "government.txt",
+      "url": "https://raw.githubusercontent.com/mengxiao2000/pybotfinder/0c20bdbad857b0eb4c8125debc3988b38428a825/account_list/government.txt",
+      "lines": 597,
+      "unique_ids": 597,
+      "sha256": "74e881c4ebe92c474a59cee250fc5c762f79b9bf16856fe21c175653fd2e803f"
+    }
+  ],
+  "unique_accounts": 6338,
+  "matching": "Exact UID; nickname is never a blocklist key"
+}

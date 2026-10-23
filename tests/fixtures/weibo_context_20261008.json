@@ -1,0 +1,18 @@
+[
+  {
+    "note_id": "5351081049588843",
+    "source_keyword": "可爱 公园",
+    "content": "🦜🦘🐪🦝🐐🍂今天是被各种小动物们治愈的一天。前几年来过一次雄安郊野公园，那时候还没有动物园，这次来，也是直奔辛玛森林动物乐园。虽说是沾我姐家小朋友的光，也算是体验了一天小朋友。和他们一起排很久的队，只为了海盗船、小火车那几分钟的快乐。逛一些动物的家，跟它们友好亲近。哪怕有一刻钟做回小孩子，也很值得。羡慕小孩子的天真烂漫，羡慕小动物的慵懒可爱，也羡慕自己经历种种仍有变回小朋友的能力。#微博兴趣创作计划##微博young派对##微博旅行ing#",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg",
+    "previous_relation_confidence": 0.73,
+    "previous_verification_confidence": 0.5,
+    "expected_text_result": "matched"
+  },
+  {
+    "note_id": "5350072162191666",
+    "source_keyword": "可爱 公园",
+    "content": "乖乖呆呆，一举一动都好可爱#刘呆米#刘呆米 cr见水印 一杯茶涩味的微博视频 ",
+    "image_names": "cover.jpg",
+    "expected_text_result": "excluded"
+  }
+]

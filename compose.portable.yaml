@@ -1,0 +1,54 @@
+name: ${COMPOSE_PROJECT_NAME:-mediacrawler-portable}
+services:
+  app:
+    image: ${APP_IMAGE:-mediacrawler-portable:20261020-proxy-fix2}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.portable
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-bookworm-slim}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.11-slim-bookworm}
+        BUILD_PIP_INDEX: ${BUILD_PIP_INDEX:-https://pypi.org/simple}
+        BUILD_DEBIAN_MIRROR: ${BUILD_DEBIAN_MIRROR:-http://deb.debian.org/debian}
+        BROWSER_DOWNLOAD_PROXY: ${BROWSER_DOWNLOAD_PROXY:-}
+        MIHOMO_DOWNLOAD_PROXY: ${MIHOMO_DOWNLOAD_PROXY:-}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 90s
+    shm_size: 1gb
+    cpus: ${APP_CPUS:-2.0}
+    mem_limit: ${APP_MEMORY_LIMIT:-4g}
+    ports:
+      - "${APP_BIND_IP:-127.0.0.1}:${APP_PORT:-18180}:8080"
+      - "${APP_BIND_IP:-127.0.0.1}:${BROWSER_PORT:-16080}:6080"
+    environment:
+      MEDIACRAWLER_CONTAINER_MODE: "1"
+      MEDIACRAWLER_BROWSER_CHANNEL: chromium
+      MEDIACRAWLER_IMAGE_PROVIDER: siliconflow
+      MEDIACRAWLER_DESKTOP_LOGIN: "1"
+      DISPLAY: ":99"
+      DESKTOP_PUBLIC_PORT: ${BROWSER_PORT:-16080}
+      BROWSER_PASSWORD: ${BROWSER_PASSWORD:?Set BROWSER_PASSWORD in .env.portable}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TYPESAFE_PROXY_URL: ${TYPESAFE_PROXY_URL:-}
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - collected-data:/app/data
+      - browser-state:/app/browser_data
+      - app-logs:/app/logs
+    healthcheck:
+      test: [CMD, python, docker/portable_health.py]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+volumes:
+  collected-data:
+  browser-state:
+  app-logs:

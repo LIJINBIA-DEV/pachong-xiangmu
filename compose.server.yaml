@@ -1,0 +1,51 @@
+name: mediacrawler-temp-us
+services:
+  app:
+    image: ${APP_IMAGE:-mediacrawler-temp-us-app:local}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-bookworm-slim}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.11-slim-bookworm}
+        BUILD_PIP_INDEX: ${BUILD_PIP_INDEX:-https://pypi.org/simple}
+        BUILD_DEBIAN_MIRROR: ${BUILD_DEBIAN_MIRROR:-http://deb.debian.org/debian}
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 90s
+    shm_size: 1gb
+    cpus: ${APP_CPUS:-2.0}
+    mem_limit: ${APP_MEMORY_LIMIT:-4g}
+    ports:
+      - "${APP_BIND_IP:-127.0.0.1}:${APP_PORT:-18180}:8080"
+    environment:
+      MEDIACRAWLER_CONTAINER_MODE: "1"
+      MEDIACRAWLER_BROWSER_CHANNEL: chromium
+      MEDIACRAWLER_IMAGE_PROVIDER: siliconflow
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TZ: Asia/Shanghai
+    volumes:
+      - type: bind
+        source: ${APP_DATA_DIR:-./docker/runtime/data}
+        target: /app/data
+      - type: bind
+        source: ${APP_BROWSER_DIR:-./docker/runtime/browser_data}
+        target: /app/browser_data
+      - type: bind
+        source: ${APP_LOG_DIR:-./docker/runtime/logs}
+        target: /app/logs
+    networks: [frontend]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+networks:
+  frontend: {}

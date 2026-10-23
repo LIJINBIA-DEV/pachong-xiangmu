@@ -1,0 +1,93 @@
+[
+  {
+    "note_id": "5351081049588843",
+    "source_keyword": "可爱 公园",
+    "content": "🦜🦘🐪🦝🐐🍂今天是被各种小动物们治愈的一天。前几年来过一次雄安郊野公园，那时候还没有动物园，这次来，也是直奔辛玛森林动物乐园。虽说是沾我姐家小朋友的光，也算是体验了一天小朋友。和他们一起排很久的队，只为了海盗船、小火车那几分钟的快乐。逛一些动物的家，跟它们友好亲近。哪怕有一刻钟做回小孩子，也很值得。羡慕小孩子的天真烂漫，羡慕小动物的慵懒可爱，也羡慕自己经历种种仍有变回小朋友的能力。#微博兴趣创作计划##微博young派对##微博旅行ing#",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg",
+    "semantic_confidence": 0.8,
+    "semantic_object_type": "park_animal",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "羡慕小孩子的天真烂漫，羡慕小动物的慵懒可爱，也羡慕自己经历种种仍有变回小朋友的能力。",
+    "target_evidence": "前几年来过一次雄安郊野公园，那时候还没有动物园，这次来，也是直奔辛玛森林动物乐园。",
+    "verification_confidence": 0.5,
+    "quality_reason": "evidence_not_verified"
+  },
+  {
+    "note_id": "5350259213735383",
+    "source_keyword": "可爱 公园",
+    "content": "在雄安兜兜转转三天，终于在郊野公园邂逅两只小可爱。一只是嘴边长两块橘色斑纹的橘白，自带滑稽花嘴；另一只是长毛三花，一身蓬松长毛，仙气十足。可惜两位都是高冷选手，性格腼腆警惕，表情严肃，不苟言笑，仿佛这片草地的巡查官，生人勿近。不敢上前打扰，远远蹲在草丛，安静捕捉它们瞬间。Mate90 Pro Max搭配睿影Z10，户外自然光下随手记录，分享这组野生猫咪成片。偶遇小动物的快乐，简单又治愈✨猫咪摄影#华为Mate90##华为睿影Z10##睿影红枫人像#",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg,010.jpg,011.jpg",
+    "semantic_confidence": 0.77,
+    "semantic_object_type": "animal",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "在雄安兜兜转转三天，终于在郊野公园邂逅两只小可爱。",
+    "target_evidence": "在雄安兜兜转转三天，终于在郊野公园邂逅两只小可爱。",
+    "verification_confidence": null,
+    "quality_reason": null
+  },
+  {
+    "note_id": "5351709125117265",
+    "source_keyword": "可爱 公园",
+    "content": "每天都有值得记录的美好！今天第一次沿着清河站旁京张铁路遗址公园一路向南，居然走到了上地桥东，还遇见了一只非常漂亮的小奶牛猫，可爱至极真想抱回家#随手记录美好生活# ",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg",
+    "semantic_confidence": 0.82,
+    "semantic_object_type": "animal",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "今天第一次沿着清河站旁京张铁路遗址公园一路向南，居然走到了上地桥东，还遇见了一只非常漂亮的小奶牛猫，可爱至极真想抱回家#随手记录美好生活# ",
+    "target_evidence": "今天第一次沿着清河站旁京张铁路遗址公园一路向南，居然走到了上地桥东，还遇见了一只非常漂亮的小奶牛猫，可爱至极真想抱回家#随手记录美好生活# ",
+    "verification_confidence": null,
+    "quality_reason": null
+  },
+  {
+    "note_id": "5351655298040568",
+    "source_keyword": "可爱 公园",
+    "content": "图：拍自跳蹬河公园       文：学然而知之        粉黛2026年10月8日跳蹬河公园粉黛，云霞仿佛系飘带。如梦似幻之色彩，纤细柔软而可爱。 ",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg",
+    "semantic_confidence": 0.27,
+    "semantic_object_type": "landscape",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "如梦似幻之色彩，纤细柔软而可爱。",
+    "target_evidence": "图：拍自跳蹬河公园       文：学然而知之        粉黛2026年10月8日跳蹬河公园粉黛，云霞仿佛系飘带。",
+    "verification_confidence": null,
+    "quality_reason": null
+  },
+  {
+    "note_id": "5351650459913190",
+    "source_keyword": "可爱 公园",
+    "content": "国庆京城限定集齐四只软萌猫咪四只小猫咪散落在京城各处，造型软乎乎,萌到心坎里！花坛颜值直接拉满，可爱又吸睛,满满的国庆氛围感[福]！四只小猫，你齐了吗四只猫咪精准定位菜市口地铁E口(免费)日坛公园南门内(免费)西单路口西北角地铁F(免费)景山公园西门内(需要门票)祝大家国庆喜乐，被小猫咪的好运包围！# 带着微博去旅行##祝福祖国##生活手记#",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg",
+    "semantic_confidence": 0.35,
+    "semantic_object_type": "animal",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "花坛颜值直接拉满，可爱又吸睛,满满的国庆氛围感[福]！",
+    "target_evidence": "四只小猫，你齐了吗四只猫咪精准定位菜市口地铁E口(免费)日坛公园南门内(免费)西单路口西北角地铁F(免费)景山公园西门内(需要门票)祝大家国庆喜乐，被小猫咪的好运包围！",
+    "verification_confidence": null,
+    "quality_reason": null
+  },
+  {
+    "note_id": "5351647402265201",
+    "source_keyword": "可爱 公园",
+    "content": "北鹰鹗，前五图昨天下午记录于浣花溪公园。鸟友们说八九年不见它了，想起2019年6月8日，安县姊妹桥记录的，一对北鹰鹗在桥头洞里育雏。它们的活动习性是白天不动，夜晚捕食，所以图六至八，应该是鸟爸，在桥头一边不远不近的守着，一天不挪窝，桥头另一边（图九）的洞里有三只小崽崽，六只眼睛瞪着，煞是可爱好看。那时我还未拍鸟，只是观察巳感特别新奇。近七年后，在浣花溪公园见到，也感稀罕。",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg",
+    "semantic_confidence": 0.25,
+    "semantic_object_type": "wild_animal",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "它们的活动习性是白天不动，夜晚捕食，所以图六至八，应该是鸟爸，在桥头一边不远不近的守着，一天不挪窝，桥头另一边（图九）的洞里有三只小崽崽，六只眼睛瞪着，煞是可爱好看。",
+    "target_evidence": "北鹰鹗，前五图昨天下午记录于浣花溪公园。",
+    "verification_confidence": null,
+    "quality_reason": "low_or_missing_confidence"
+  },
+  {
+    "note_id": "5351541683786658",
+    "source_keyword": "可爱 公园",
+    "content": "DAY6 比平时还早起半小时出发去阿尔山森林公园，不理解来了之后说秋天没看头的，这漫山遍野秋叶可太有看头了啊。黄澄澄红彤彤才有独特童话味，夏天你拿什么跟其他几个天花板景区比呢（。驼峰岭天池比正装版天池好爬一些于是选了这条线放弃后者，今天唯一爬得比较痛苦的，弥补没看上长白山天池的遗憾，毕竟蒙东号称内蒙小东北（不是，哦是的）。第二站大峡谷本身没啥看头但是可爱的小蓝鸟会跳到你手上吃瓜子。小蓝鸟学名普通䴓，胆大不怕人，捡了吃的就飞走囤起来，然后再飞过来继续索要。买了瓜子的小姑娘送了一把给围观的我，于是我也学会了买粮后分给路过想要的人，在阿尔山这属于公序良俗。杜鹃湖出来的路边有不知是被人遗弃还是有意放置的卷饼，饼里有鼠兔出没，大吃特吃，但人类勿近。再后面就是三潭峡有景区工作人员在标着“花栗鼠出没地”的平台给鼠喂粮喂水，由于不好意思贸然触碰吓鼠，以为这就是今天的缘分到顶了，结果快到出口的栈道正中央就遇到一只大大方方的鼠。一掏粮它就跳到手上、膝盖上，顺着裤管爬上人身……吃完手里的还会好奇嗅探扒拉到鼠粮袋子，最后嘴里塞满花生心满意足头也不回地跑了。鼠和小鸟的爪子踩在手掌上的触感都是软软的。",
+    "image_names": "001.jpg,002.jpg,003.jpg,004.jpg,005.jpg,006.jpg,007.jpg,008.jpg,009.jpg,010.jpg,011.jpg,012.jpg,013.jpg,014.jpg,015.jpg,016.jpg,017.jpg,018.jpg",
+    "semantic_confidence": 0.86,
+    "semantic_object_type": "wild_animal",
+    "semantic_target_relation": "scene_component",
+    "semantic_evidence": "第二站大峡谷本身没啥看头但是可爱的小蓝鸟会跳到你手上吃瓜子。",
+    "target_evidence": "DAY6 比平时还早起半小时出发去阿尔山森林公园，不理解来了之后说秋天没看头的，这漫山遍野秋叶可太有看头了啊。",
+    "verification_confidence": 0.62,
+    "quality_reason": "evidence_not_verified"
+  }
+]

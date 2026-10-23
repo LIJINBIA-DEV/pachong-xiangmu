@@ -1,0 +1,11 @@
+# Optional override. Only the app gains the private SSH socket and Jev token.
+services:
+  app:
+    environment:
+      TYPESAFE_RELAY_SOCKET: /run/jev-relay/jev.sock
+      TYPESAFE_RELAY_TOKEN: ${TYPESAFE_RELAY_TOKEN:?Configure the private Jev relay token first}
+    volumes:
+      - type: bind
+        source: ${SPARK_JEV_RELAY_DIR:-./docker/runtime/jev-relay}
+        target: /run/jev-relay
+        read_only: true

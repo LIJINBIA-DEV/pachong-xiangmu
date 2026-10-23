@@ -1,0 +1,11 @@
+{
+  "progress_enabled": false,
+  "cache_enabled": false,
+  "prewarm_enabled": false,
+  "cache_days": 7,
+  "prewarm_hour": 3,
+  "prewarm_targets": [
+    {"school": "贵州大学", "topic": "计算机专硕就读体验", "platform": "zhihu"},
+    {"school": "四川大学", "topic": "电子信息专硕就读体验", "platform": "zhihu"}
+  ]
+}

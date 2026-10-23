@@ -1,0 +1,529 @@
+{
+  "source": "semantic_checkpoint_0b1a23c8281f.jsonl",
+  "source_sha256": "0d281507a98e8e25c01909ff71aed72fe0d9a60f6df14bb921522d4997128cb1",
+  "annotation_scope": "人工文本验收目标；不是新模型预测。positive仍需图片和账号审核。",
+  "cases": [
+    {
+      "id": "5348427791861259",
+      "case": "low_confidence",
+      "expected_reason": "滑梯与公园的关联不明确，0.20不可自动通过",
+      "note": {
+        "note_id": "5348427791861259",
+        "content": "最近家里就这样每天睡醒一开门像个摊儿非常适合吃西瓜的勺 我怀疑它使用了某种魅术！两人厨房历险记 准确说是与梭子蟹大战记没啥好说的孙老师依旧美丽依旧神经兮兮我盯上这棵树很久了从开花开始！终于拍到了蒸星的！建议大家去草地上躺躺！抬头望着天空的时候好像只剩下自己的感觉就一个夯、于是和孙老师说好以后有空就要去公园躺平！家人们！上厕所不让进这人什么毛病？（你老公不爱你了 你老公…）hhhhhhhhh别当真拜托了孤独向北好像很喜欢孙🧑🏫这滑滑梯给我笑活了好可爱妈也妈也萌萌萌圆咕隆咚小鼻嘎子喵俺嘞个爸耶和多见面了omg 世纪之交终于见上还吃了香喷喷的饭见到了长寿的外婆一篇倒叙生活",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.2,
+        "source": "note",
+        "evidence_text": "抬头望着天空的时候好像只剩下自己的感觉就一个夯、于是和孙老师说好以后有空就要去公园躺平！",
+        "object_type": "place",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5347896161731979",
+      "case": "name_only",
+      "expected_reason": "评价的是公园英文名，不能计入空间样本",
+      "note": {
+        "note_id": "5347896161731979",
+        "content": "Tokyo Moments🗼第一站就冲往代代木公园，这个公园的英文名叫yoyogi，实在是太可爱的名字，因为《完美的日子》对其有深厚之滤镜。（准备巡礼东京名厕所来的（bushi。一路上耳机里必然也要循环「Perfect Day」～Oh such a perfect day, You just keep me hanging on,You're going to reap just what you sow～～实在太松弛太兴奋了，一下子就坐反地铁了，果然人不能太放飞（内心os我的完美day被毁了啊啊啊啊！但一出地铁看到透明厕所刚好有叔在打扫直接复刻电影名场面一下子就好了～这公园也太让人愉悦了，路遇视障者&amp;伴走搭子跑步活动，是一种令人震撼的人文感受。从公园晃到八幡宫再到惠比寿，追随平山叔完美一天的脚步到此为止啦。好希望总有一天，我也可以不顾一切地去过上真的认可又平静的生活。再从中目黑一路逛到代官山，在茑屋胡乱翻书实则根本看不懂～～去TN购入东京限定内芯，今日又在东京站入手人生第一本TN本皮，还是东京限定！！！who knows？盖出让我觉得好满意的DIY章哈哈哈哈，所谓旅行的意义，好满足～唯一遗憾就是没有看到晴朗夜空里的东京塔，那就：今度は今度、今は今！！汤咖喱好吃！！！牛乳布丁好好吃，离开之前我要每天吃！！！",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5347896849597387",
+          "content": "靠靠靠才发现并没放TN之图，先浅浅放一张等第二弹再放出"
+        },
+        {
+          "comment_id": "5348051483101933",
+          "content": "终于去了姐"
+        },
+        {
+          "comment_id": "5347897693706971",
+          "content": "此微博“添加位置”能帮更多日本同城小伙伴发现本地新鲜事和宝藏打卡地。 发布支持添加异地位置（发布后编辑也可以），如何操作请查看&gt;&gt;网页链接"
+        },
+        {
+          "comment_id": "5347896398446741",
+          "content": "代代木公园的树荫和透明厕所的瞬间，真的把《完美的日子》那种松弛感复刻到了现实里。跟着电影脚步走的巡礼太有意义了，期待你更多东京的治愈碎片！"
+        }
+      ],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.2,
+        "source": "note",
+        "evidence_text": "笔记上下文（以下标题、正文、一级评论属于同一条微博）：Tokyo Moments🗼第一站就冲往代代木公园，这个公园的英文名叫yoyogi，实在是太可爱的名字，因为《完美的日子》对其有深厚之滤镜。",
+        "object_type": "place",
+        "target_relation": "target_itself"
+      }
+    },
+    {
+      "id": "5348198942249797",
+      "case": "wrong_evidence",
+      "expected_reason": "证据选到蒸馏酒事实，且展品范围待确认",
+      "note": {
+        "note_id": "5348198942249797",
+        "content": "大辛庄遗址公园，商代文物，其中有铜鸮卣，很好玩，造型酷似猫头鹰，呆萌可爱，是商代晚期的青铜酒器。内部残留商代蒸馏酒痕迹，将中国蒸馏酒历史提前千年。 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5348199537312899",
+          "content": "铜鸮卣的猫头鹰造型确实萌翻了！不过需澄清，蒸馏酒痕迹的发现主要来自河南安阳殷墟妇好墓出土的同类器物，而非大辛庄。但商代酿酒技术之发达，足以让古人“醉”倒千年。"
+        }
+      ],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.52,
+        "source": "note",
+        "evidence_text": "不过需澄清，蒸馏酒痕迹的发现主要来自河南安阳殷墟妇好墓出土的同类器物，而非大辛庄。",
+        "object_type": "place",
+        "target_relation": "element_component"
+      }
+    },
+    {
+      "id": "5348459936746114",
+      "case": "animal_rescue",
+      "expected_reason": "小猫花坛不应直接当真实猫排除",
+      "note": {
+        "note_id": "5348459936746114",
+        "content": "终于来拍了，这嘴套真饱满，一眼新脸版！#每一天都是爱新脸版的一天##北京小猫花坛也太可爱了##广阳谷城市森林公园##新脸版布偶猫#布偶猫 北京·广阳谷城市森林 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "excluded",
+        "confidence": null,
+        "source": "semantic_reject",
+        "evidence_text": "#每一天都是爱新脸版的一天##北京小猫花坛也太可爱了##广阳谷城市森林公园##新脸版布偶猫#布偶猫 北京·广阳谷城市森林",
+        "object_type": "animal",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348262121046076",
+      "case": "animal_rescue",
+      "expected_reason": "留在公园的潦草小猫语境需复核，不能直接判真实猫",
+      "note": {
+        "note_id": "5348262121046076",
+        "content": "#北京潦草小猫将留在日坛公园# 早知道就不用着急忙慌地去打卡了猫猫确实可爱，让我在怠惰的中秋假期迈出家门有它一半功劳 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5348262959382655",
+          "content": "猫坐庄施法 自动朝圣 [语音评论3&quot;]"
+        }
+      ],
+      "previous": {
+        "status": "excluded",
+        "confidence": null,
+        "source": "semantic_reject",
+        "evidence_text": "笔记上下文（以下标题、正文、一级评论属于同一条微博）：#北京潦草小猫将留在日坛公园# 早知道就不用着急忙慌地去打卡了猫猫确实可爱，让我在怠惰的中秋假期迈出家门有它一半功劳",
+        "object_type": "animal",
+        "target_relation": "target_itself"
+      }
+    },
+    {
+      "id": "5348096089526688",
+      "case": "animal_rescue",
+      "expected_reason": "花坛猫存在装置语境，但与当前公园关系仍需复核",
+      "note": {
+        "note_id": "5348096089526688",
+        "content": "#生活手记#今年北京花坛含🐱量有点高不过谷谷确实可爱，我要去日坛景山公园找另外两只 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "excluded",
+        "confidence": null,
+        "source": "semantic_reject",
+        "evidence_text": "content: #生活手记#今年北京花坛含🐱量有点高不过谷谷确实可爱，我要去日坛景山公园找另外两只",
+        "object_type": "animal",
+        "target_relation": "unrelated"
+      }
+    },
+    {
+      "id": "5348469663073464",
+      "case": "duplicate_original",
+      "expected_reason": "相同正文第一条",
+      "note": {
+        "note_id": "5348469663073464",
+        "content": "【可可爱爱！#听说长安街沿线长猫了#】#今年国庆花坛有多可爱#国庆节临近，长安街沿线出现多个小猫造型的花坛，打卡攻略请收好！西单地铁站F2出口向后看景山公园西门一进门日坛公园南门菜市口地铁站E口出口（人民网微博） 人民网的微博视频 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5348472306008803",
+          "content": "周二互评 网页链接 谢谢"
+        }
+      ],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.87,
+        "source": "note",
+        "evidence_text": "西单地铁站F2出口向后看景山公园西门一进门日坛公园南门菜市口地铁站E口出口（人民网微博） 人民网的微博视频",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348452051717984",
+      "case": "duplicate_copy",
+      "expected_reason": "与5348469663073464正文完全相同",
+      "note": {
+        "note_id": "5348452051717984",
+        "content": "【可可爱爱！#听说长安街沿线长猫了#】#今年国庆花坛有多可爱#国庆节临近，长安街沿线出现多个小猫造型的花坛，打卡攻略请收好！西单地铁站F2出口向后看景山公园西门一进门日坛公园南门菜市口地铁站E口出口（人民网微博） 人民网的微博视频 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5348469361346920",
+          "content": "可爱啊啊啊啊"
+        },
+        {
+          "comment_id": "5348468350256271",
+          "content": ""
+        },
+        {
+          "comment_id": "5348457705115279",
+          "content": "哇有亿点好看"
+        },
+        {
+          "comment_id": "5348457046871164",
+          "content": "这也太可爱太好看了吧～好治愈"
+        },
+        {
+          "comment_id": "5348454406555372",
+          "content": "好可爱呀！"
+        },
+        {
+          "comment_id": "5348458846489024",
+          "content": "猫咪😙😙😙"
+        },
+        {
+          "comment_id": "5348469927053382",
+          "content": "都好漂亮还符合🐱的毛发神态，太厉害啦"
+        },
+        {
+          "comment_id": "5348469602517760",
+          "content": "好可爱，想去打卡"
+        },
+        {
+          "comment_id": "5348459361339471",
+          "content": "可爱的猫咪...谢谢你的出现！"
+        }
+      ],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.91,
+        "source": "note",
+        "evidence_text": "西单地铁站F2出口向后看景山公园西门一进门日坛公园南门菜市口地铁站E口出口（人民网微博） 人民网的微博视频",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348068222569297",
+      "case": "near_original",
+      "expected_reason": "新闻长文原版本",
+      "note": {
+        "note_id": "5348068222569297",
+        "content": "【#北京3.5米潦草小猫火了#】#北京潦草小猫将留在日坛公园##北京潦草小猫是用野牛草做的#“就是它，真可爱！快，咱也合张影。”最近，日坛公园南门，一只3.5米高、弯着眼、扬着嘴、笑逐颜开的潦草小猫“蓬蓬”火出了圈，游客们争相与它合影留念。人群中甚至还有游客拉着行李箱，他们正是看到社交媒体上的打卡分享，特意前来一睹“蓬蓬”真容。看到“蓬蓬”如此受欢迎，李梦羽站在一旁，浅浅地露出欣慰的笑。她也掏出手机，记录下“蓬蓬”和游客间亲密的“互动”。李梦羽是北京枝韵神州环保科技有限公司（花乡花木集团）设计团队的一员，“蓬蓬”是他们和日坛印象（北京）旅游文化有限公司共同设计创意的作品。年轻的创意设计团队，平均年龄三十五六岁，全新的理念，在交流碰撞中，一次年轻化、生活化的尝试应运而生。“日坛公园里有很多小猫，在社交媒体上很受年轻人欢迎，很多人专门来看望它们。”古建公园、软萌猫咪、中秋国庆、休闲放松……所有元素巧妙融合，最终汇聚在潦草小猫“蓬蓬”身上。和许多年轻人一样，36岁的李梦羽同样喜欢随性、松弛、自在的状态。在以往的节日景观中，通常更多地展现盛世山河、家国情怀。而“蓬蓬”的设计跳出常规思路，“虽然叫它潦草小猫，但设计制作绝对不敷衍，而是崇尚自然，希望用这种态度吸引更多年轻人的目光，这与日坛公园顺应四时的理念也是吻合的。”为了配合日坛公园菊花展，让“蓬蓬”保持最佳状态，在一轮又一轮的试种测试后，躯干用草选择了最适合当下气候，长势、质感、耐候性最好的野牛草。“蓬蓬”脖子的花围脖、脚下的花绣球，挑选了太阳花、银叶菊、蓝角堇、四季海棠等秋花，色彩鲜艳，又适合立体栽植。团队自研的模块化垒植（无盆立体栽培）创新工艺，用海绵包裹植物土坨，做成一个个生态砌块，像搭积木一样垒起来，保留草木自然、柔软、鲜活的状态。“蓬蓬”躯干内部，导水管像血管一样蜿蜒伸展。每天一次，园林绿化工人打开阀门，为“蓬蓬”输水。等日坛公园菊花展落幕后，“蓬蓬”不会被遗弃，也不会流浪，而是留在日坛公园，由多方共同维护，以最好的状态迎接来到日坛公园的游客。（@北京日报 记者 孙毅 莫凡 实习记者 付庭苇） 北京日报的微博视频",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.95,
+        "source": "note",
+        "evidence_text": "笔记上下文（以下标题、正文、一级评论属于同一条微博）：【#北京3.5米潦草小猫火了#】#北京潦草小猫将留在日坛公园##北京潦草小猫是用野牛草做的#“就是它，真可爱！",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348220331886571",
+      "case": "near_copy",
+      "expected_reason": "同一新闻截取版本应标记近似重复",
+      "note": {
+        "note_id": "5348220331886571",
+        "content": "【#北京3.5米潦草小猫火了#】#北京潦草小猫将留在日坛公园##北京潦草小猫是用野牛草做的#“就是它，真可爱！快，咱也合张影。”最近，日坛公园南门，一只3.5米高、弯着眼、扬着嘴、笑逐颜开的潦草小猫“蓬蓬”火出了圈，游客们争相与它合影留念。人群中甚至还有游客拉着行李箱，他们正是看到社交媒体上的打卡分享，特意前来一睹“蓬蓬”真容。北京日报的微博视频",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.95,
+        "source": "note",
+        "evidence_text": "”最近，日坛公园南门，一只3.5米高、弯着眼、扬着嘴、笑逐颜开的潦草小猫“蓬蓬”火出了圈，游客们争相与它合影留念。",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348431807644308",
+      "case": "positive",
+      "expected_reason": "公园的中秋兔子装置",
+      "note": {
+        "note_id": "5348431807644308",
+        "content": "昨晚跟舍友出来跑步看见公园里放了中秋的装置，兔子可爱内 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.95,
+        "source": "note",
+        "evidence_text": "content: 昨晚跟舍友出来跑步看见公园里放了中秋的装置，兔子可爱内",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348212611484438",
+      "case": "positive",
+      "expected_reason": "个人游园描述草猫装置",
+      "note": {
+        "note_id": "5348212611484438",
+        "content": "以前娃生病就去儿研所，等待时常去日坛公园。现在娃很少生病了，也就好久没有来了。这次特意来看今年双节特产：三米的大花猫。一进南门就看到了，很大，很萌，很可爱😍拿起手机咔咔拍了几张。好想过去摸摸抱抱，可惜不让进去。看看就好啦，这样能让大花猫保持最佳状态，给更多人带来惊喜和快乐。再往前走是菊花谷，在小山坡上摆满了各种各样的菊花。往北门走，日坛博物馆里展出各种精品菊花，对面则是卖各种品种的金鱼的小摊儿，30块钱一袋，有几种金鱼我都没见过，娃爹说公公以前就养过。秋风和煦，阳光温柔。我捡起掉在地上一片叶子，颜色斑驳，带着秋天的味道。",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.93,
+        "source": "note",
+        "evidence_text": "一进南门就看到了，很大，很萌，很可爱😍拿起手机咔咔拍了几张。",
+        "object_type": "place",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348103592871413",
+      "case": "positive",
+      "expected_reason": "花坛猫的个人观察，不应因同主题被去重",
+      "note": {
+        "note_id": "5348103592871413",
+        "content": "十一假期即将到来，每年此时主要街道路口和公园都会布置花坛，路过日坛南门看到立起一只花坛猫，挺可爱，散步到此的人纷纷拍照。看介绍，猫身是用野牛草来装饰，野牛草原属南美植物，后引进中国，广泛用于饲料、水土保持、装饰等用途。对这个名字并不陌生，多年前在电影《苏州河》里出现过野牛草伏特加，瓶里便有一根。天气慢慢开始变得凉爽了，树木花草即将开始变色，金秋就在不远处。",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.99,
+        "source": "note",
+        "evidence_text": "笔记上下文（以下标题、正文、一级评论属于同一条微博）：十一假期即将到来，每年此时主要街道路口和公园都会布置花坛，路过日坛南门看到立起一只花坛猫，挺可爱，散步到此的人纷纷拍照。",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5346331386183697",
+      "case": "positive",
+      "expected_reason": "明确的猫咪绿雕",
+      "note": {
+        "note_id": "5346331386183697",
+        "content": "#北京日坛公园巨型草猫好萌# 【#巨型草猫亮相北京日坛公园#】9月23日，@新京报 记者在北京日坛公园南门看到，一只巨型“草猫”亮相，十分吸睛。这个猫咪绿雕名叫“蓬蓬”，由花草搭建而成，体形巨大，毛茸茸的质感增添了几分可爱，引得来往游客纷纷驻足拍照。据了解，9月24日至10月7日，日坛公园将开启金秋游园会，缤纷秋菊花境、猫咪艺术装置等布景为市民增添假日乐趣。 新京报的微博视频",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5346786224899202",
+          "content": "好可爱啊！要去看#北京日坛公园巨型草猫好萌# #巨型草猫亮相北京日坛公园#"
+        },
+        {
+          "comment_id": "5346962912054268",
+          "content": ""
+        },
+        {
+          "comment_id": "5346655115149927",
+          "content": "可爱"
+        },
+        {
+          "comment_id": "5346613627459773",
+          "content": "猫来财 狗来富"
+        }
+      ],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.99,
+        "source": "note",
+        "evidence_text": "这个猫咪绿雕名叫“蓬蓬”，由花草搭建而成，体形巨大，毛茸茸的质感增添了几分可爱，引得来往游客纷纷驻足拍照。",
+        "object_type": "landscape",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348110736033384",
+      "case": "positive",
+      "expected_reason": "明确评价涂鸦狗公园",
+      "note": {
+        "note_id": "5348110736033384",
+        "content": "周五提前下班去完健身房后，去快递站取了自己的记忆枕和冲牙器，等着L去KFC提了超大一包回来，我仿佛跟没练一样…吃完后两个人去楼上采购下周的口粮，踩着夜色散步回家第二天一起做一整天的饭，L某切菜工艺已经超过我了，下午他学习我就端着平板看剧，熬同事给的八宝茶（好喝！晚上因为一个话头聊到半夜四点，两颗脑袋靠在一起。顺着落地窗望向天上明亮的月亮。在家附近的天台发现了可爱的涂鸦狗公园和人均50的电影院，夏天的夜晚已经变得不爱闷热了。",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "matched",
+        "confidence": 0.9,
+        "source": "note",
+        "evidence_text": "在家附近的天台发现了可爱的涂鸦狗公园和人均50的电影院，夏天的夜晚已经变得不爱闷热了。",
+        "object_type": "place",
+        "target_relation": "target_itself"
+      }
+    },
+    {
+      "id": "5347834165461383",
+      "case": "negative",
+      "expected_reason": "公园里的真实猫",
+      "note": {
+        "note_id": "5347834165461383",
+        "content": "北海公园part2看到了两只可爱小咪～今日步数也已经达标了 北京·北海公园 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5347841355811366",
+          "content": "好可爱的猫咪，养了多久了"
+        }
+      ],
+      "previous": {
+        "status": "excluded",
+        "confidence": null,
+        "source": "semantic_reject",
+        "evidence_text": "content: 北海公园part2看到了两只可爱小咪～今日步数也已经达标了 北京·北海公园",
+        "object_type": "animal",
+        "target_relation": "unrelated"
+      }
+    },
+    {
+      "id": "5348451778826261",
+      "case": "negative",
+      "expected_reason": "孩子的橡皮与公园无组成关系",
+      "note": {
+        "note_id": "5348451778826261",
+        "content": "我儿子可爱的橡皮 吉林·北山公园 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [],
+      "previous": {
+        "status": "excluded",
+        "confidence": null,
+        "source": "semantic_reject",
+        "evidence_text": "content: 我儿子可爱的橡皮 吉林·北山公园",
+        "object_type": "unrelated_item",
+        "target_relation": "unrelated"
+      }
+    },
+    {
+      "id": "5345287497319914",
+      "case": "negative",
+      "expected_reason": "评价的是狗而非公园",
+      "note": {
+        "note_id": "5345287497319914",
+        "content": "超级无敌大公园和超级无敌可爱狗 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5345502900259197",
+          "content": "狗舌头好萌"
+        },
+        {
+          "comment_id": "5345287787777818",
+          "content": "我怎么感觉ba的腿变长了！"
+        }
+      ],
+      "previous": {
+        "status": "excluded",
+        "confidence": null,
+        "source": "semantic_reject",
+        "evidence_text": "content: 超级无敌大公园和超级无敌可爱狗",
+        "object_type": "place",
+        "target_relation": "target_itself"
+      }
+    },
+    {
+      "id": "5348112740123772",
+      "case": "unclear",
+      "expected_reason": "可爱p指代不清，不应自动通过",
+      "note": {
+        "note_id": "5348112740123772",
+        "content": "可爱p  公园溜达 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5348277956641260",
+          "content": "没有人能够逃过公园定律"
+        },
+        {
+          "comment_id": "5348254205608995",
+          "content": "不错"
+        },
+        {
+          "comment_id": "5348216867655690",
+          "content": "我去这么美"
+        },
+        {
+          "comment_id": "5348251768717373",
+          "content": "风景好棒呀"
+        },
+        {
+          "comment_id": "5348380329117728",
+          "content": "悠闲的时光总是过得很快"
+        },
+        {
+          "comment_id": "5348240838887290",
+          "content": "好看的景色"
+        },
+        {
+          "comment_id": "5348176817032801",
+          "content": "图三图四屋檐上的瓦片好像覆盖了雪一样"
+        },
+        {
+          "comment_id": "5348118065319049",
+          "content": "好漂亮的公园！！！"
+        },
+        {
+          "comment_id": "5348115072680407",
+          "content": "古色古香的林亭台，逛公园好惬意呀"
+        }
+      ],
+      "previous": {
+        "status": "review",
+        "confidence": null,
+        "source": "model_review",
+        "evidence_text": "content: 可爱p  公园溜达",
+        "object_type": "place",
+        "target_relation": "scene_component"
+      }
+    },
+    {
+      "id": "5348176380825643",
+      "case": "unclear",
+      "expected_reason": "可爱萌物类别尚不明确",
+      "note": {
+        "note_id": "5348176380825643",
+        "content": "静安公园重新开放了～有可爱萌物，有错落景致大草坪应该是晚上有光影欢庆活动 ",
+        "source_keyword": "可爱 公园"
+      },
+      "comments": [
+        {
+          "comment_id": "5348177807151794",
+          "content": "此微博“添加位置”能帮更多同城小伙伴发现本地新鲜事和宝藏打卡地。 发布支持添加异地位置（发布后编辑也可以），如何操作请查看&gt;&gt;网页链接"
+        }
+      ],
+      "previous": {
+        "status": "review",
+        "confidence": null,
+        "source": "model_review",
+        "evidence_text": "content: 静安公园重新开放了～有可爱萌物，有错落景致大草坪应该是晚上有光影欢庆活动",
+        "object_type": "place",
+        "target_relation": "target_itself"
+      }
+    }
+  ]
+}

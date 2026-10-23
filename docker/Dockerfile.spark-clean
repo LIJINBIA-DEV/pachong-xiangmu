@@ -1,0 +1,31 @@
+# Repack an already-validated deployment onto a clean OS/Python base.
+# SOURCE_IMAGE is used only to read the current files and exact installed dependencies;
+# the final image does not inherit its historical application layers.
+ARG SOURCE_IMAGE
+ARG PYTHON_IMAGE
+FROM ${SOURCE_IMAGE} AS deployed
+FROM ${PYTHON_IMAGE} AS runtime
+ARG BUILD_DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/debian
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv UV_PYTHON_DOWNLOADS=never UV_NO_SYNC=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright PATH=/opt/venv/bin:$PATH
+COPY --from=deployed /opt/venv /opt/venv
+COPY --from=deployed /opt/playwright /opt/playwright
+COPY --from=deployed /usr/local/bin/node /usr/local/bin/node
+COPY --from=deployed /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+COPY --from=deployed /usr/local/lib/python3.11/site-packages/uv /usr/local/lib/python3.11/site-packages/uv
+COPY --from=deployed /usr/local/lib/python3.11/site-packages/uv-0.11.0.dist-info /usr/local/lib/python3.11/site-packages/uv-0.11.0.dist-info
+RUN sed -i "s|http://deb.debian.org/debian|${BUILD_DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg libgl1 ca-certificates tzdata libstdc++6 \
+    && python -m playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/* /root/.cache
+WORKDIR /app
+COPY --from=deployed /app /app
+RUN groupadd --gid 1000 app \
+    && useradd --uid 1000 --gid 1000 --create-home app \
+    && mkdir -p /app/data /app/logs /app/browser_data \
+    && chown app:app /app/data /app/logs /app/browser_data
+USER app
+EXPOSE 8080
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
