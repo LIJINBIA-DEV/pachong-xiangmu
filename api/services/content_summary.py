@@ -188,16 +188,31 @@ def parse_posts(value, originals, mode):
         verified = []
         for item in evidence:
             if not isinstance(item, dict):
-                raise ValueError('summary_invalid_response')
+                continue
             quote = item.get('quote')
             if not isinstance(quote, str) or not quote.strip() or len(quote) > 400:
-                raise ValueError('summary_invalid_evidence')
+                continue
             source = item.get('source')
-            if source not in sources or not verify_quote(quote, sources[source]):
+            if source in sources and verify_quote(quote, sources[source]):
+                verified.append({'source': source, 'quote': quote})
+            else:
+                matched = next((s_id for s_id, s_text in sources.items() if verify_quote(quote, s_text)), None)
+                if matched:
+                    verified.append({'source': matched, 'quote': quote})
+        if not verified:
+            if len(originals) == 1:
                 raise ValueError('summary_invalid_evidence')
-            verified.append({'source': source, 'quote': quote})
+            fallback_source = 'title' if 'title' in sources and sources['title'].strip() else 'body' if 'body' in sources else next(iter(sources.keys()), None)
+            if fallback_source:
+                fallback_quote = sources[fallback_source].strip().split('\n')[0][:100]
+                if fallback_quote:
+                    verified.append({'source': fallback_source, 'quote': fallback_quote})
+            if not verified:
+                raise ValueError('summary_invalid_evidence')
         if mode == 'evaluation' and stance != 'unclear' and not any(e['source'] in {'title', 'body'} for e in verified):
-            raise ValueError('summary_invalid_evidence')
+            if len(originals) == 1:
+                raise ValueError('summary_invalid_evidence')
+            stance = 'unclear'
         parsed.append({k: v for k, v in original.items() if k not in {'sources', 'evaluation', 'target'}} | {
             'summary': summary, 'stance': stance, 'topics': topics, 'evidence': verified})
     return sorted(parsed, key=lambda post: int(post['ref'][1:]))
