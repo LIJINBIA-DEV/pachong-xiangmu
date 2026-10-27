@@ -4,7 +4,7 @@ export function parseKeywordSearches(value: string): string[] {
     .map((line) => line.trim().replace(/\s+/g, ' ')).filter(Boolean)
 }
 
-export function keywordSearchError(value: string): { reason: string; line?: number } | null {
+export function keywordSearchError(value: string, rule: 'scene' | 'topic' = 'scene'): { reason: string; line?: number } | null {
   const rows = value.replace(/^\ufeff/, '').split(/\r\n?|\n/)
   if (!parseKeywordSearches(value).length) return { reason: 'empty' }
   if (parseKeywordSearches(value).length > 10000) return { reason: 'limit' }
@@ -13,7 +13,7 @@ export function keywordSearchError(value: string): { reason: string; line?: numb
     if (!row) continue
     if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffd]/.test(row)) return { reason: 'format', line: index + 1 }
     if (/[,，、;；]/.test(row)) return { reason: 'separator', line: index + 1 }
-    if (row.split(/\s+/).length < 2) return { reason: 'terms', line: index + 1 }
+    if (rule === 'scene' && row.split(/\s+/).length < 2) return { reason: 'terms', line: index + 1 }
   }
   return null
 }
@@ -31,7 +31,7 @@ export function keywordSearchConfig(value: string) {
 }
 
 /** UTF-8, UTF-16 Notepad and legacy GBK TXT, with the same row rules as typing. */
-export function parseSearchTxt(buffer: ArrayBuffer): string[] {
+export function parseSearchTxt(buffer: ArrayBuffer, rule: 'scene' | 'topic' = 'scene'): string[] {
   const bytes = new Uint8Array(buffer)
   let content: string
   try {
@@ -42,7 +42,7 @@ export function parseSearchTxt(buffer: ArrayBuffer): string[] {
       catch { content = new TextDecoder('gb18030', { fatal: true }).decode(bytes) }
     }
   } catch { throw new Error('format') }
-  const error = keywordSearchError(content)
+  const error = keywordSearchError(content, rule)
   if (error) throw new Error(error.reason)
   return parseKeywordSearches(content)
 }

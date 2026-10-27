@@ -1,4 +1,4 @@
-"""Optional container desktop login; human verification stays in the same context."""
+"""Interactive login; human verification stays in the same browser context."""
 import asyncio
 import os
 import time
@@ -19,7 +19,7 @@ def desktop_status():
             'desktop_port': int(os.environ.get('DESKTOP_PUBLIC_PORT', '6080'))}
 
 
-async def run_interactive_login(service, refresh, platform):
+async def run_interactive_login(service, refresh, platform, *, persistent_profile=False):
     """Only persist after platform authentication, never just after clearing a challenge."""
     if platform == 'wb':
         from media_platform.weibo.session import read_session, save_session
@@ -33,13 +33,21 @@ async def run_interactive_login(service, refresh, platform):
 
     try:
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(channel=web_login_browser_channel(), headless=False)
+            if persistent_profile:
+                from media_platform.xhs.browser import launch_local_context
+                context = await launch_local_context(playwright, service.root)
+                browser = context
+            else:
+                browser = await playwright.chromium.launch(channel=web_login_browser_channel(), headless=False)
             try:
                 saved = None if refresh else read_session(service.root)
-                context = await browser.new_context(storage_state=saved, viewport={'width': 1100, 'height': 760})
-                page = await context.new_page()
+                if not persistent_profile:
+                    context = await browser.new_context(storage_state=saved, viewport={'width': 1100, 'height': 760})
+                elif saved and not any(c.get('name') == 'web_session' for c in await context.cookies()):
+                    await context.add_cookies(saved['cookies'])
+                page = context.pages[0] if persistent_profile and context.pages else await context.new_page()
                 await page.goto(start_url, wait_until='domcontentloaded', timeout=30000)
-                if saved:
+                if saved and not persistent_profile:
                     valid = (await service.mobile_authenticated(context) if platform == 'wb'
                              else await service.authenticated(page, context))
                     if valid:
@@ -84,11 +92,23 @@ async def run_interactive_login(service, refresh, platform):
                     await asyncio.sleep(2)
                 service.state.update(status='expired', qr_image=None, expires_at=None, reason='qrcode_expired')
             finally:
-                await browser.close()
+                try:
+                    await browser.close()
+                except BrowserError:
+                    pass
     except asyncio.CancelledError:
         service.state.update(status='cancelled', qr_image=None, expires_at=None, reason=None)
         raise
     except OSError:
         service.state.update(status='error', qr_image=None, expires_at=None, reason='login_save_failed')
-    except (BrowserError, ValueError, TypeError):
+    except BrowserError as error:
+        message = str(error).lower()
+        if 'singleton' in message or 'already in use' in message:
+            reason = 'login_profile_busy'
+        elif 'closed' in message:
+            reason = 'login_browser_closed'
+        else:
+            reason = 'login_browser_error'
+        service.state.update(status='error', qr_image=None, expires_at=None, reason=reason)
+    except (ValueError, TypeError):
         service.state.update(status='error', qr_image=None, expires_at=None, reason='login_browser_error')

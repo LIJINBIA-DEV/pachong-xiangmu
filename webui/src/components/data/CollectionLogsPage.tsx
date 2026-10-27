@@ -4,19 +4,22 @@ import { useTranslation } from 'react-i18next'
 import { AlertCircle, CheckCircle2, RefreshCw, Search, ScrollText } from 'lucide-react'
 import { isAxiosError } from 'axios'
 import { dataApi } from '@/lib/api'
+import { taskLabel } from '@/lib/fileLabels'
+import { CollectionLogDetails } from './CollectionLogDetails'
 import { Button } from '@/components/ui/button'
 
 const inputClass = 'h-10 min-w-0 rounded-md border border-cyber-border bg-cyber-bg-panel px-3 text-sm text-cyber-text-primary focus:outline-none focus:ring-2 focus:ring-cyber-neon-cyan'
 
 export function CollectionLogsPage({ active }: { active: boolean }) {
   const { t } = useTranslation('workspace')
+  const { t: td } = useTranslation('data')
   const [selected, setSelected] = useState(() => { try { return localStorage.getItem('mediacrawler_review_file') || '' } catch { return '' } })
   const [round, setRound] = useState('all')
-  const [missingOnly, setMissingOnly] = useState(true)
+  const [missingOnly, setMissingOnly] = useState(false)
   const [search, setSearch] = useState('')
-  const filesQuery = useQuery({ queryKey: ['dataFiles'], queryFn: async () => (await dataApi.getFiles()).data.files, enabled: active })
-  const files = (filesQuery.data || []).filter((file) => !/(comment|creator|guard_replay|semantic_checkpoint)/i.test(file.name))
-  const file = files.some((item) => item.path === selected) ? selected : files.find((item) => !item.name.includes('_semantic'))?.path || files[0]?.path || ''
+  const filesQuery = useQuery({ queryKey: ['collectionTasks'], queryFn: async () => (await dataApi.getTasks()).data.tasks, enabled: active })
+  const tasks = filesQuery.data || []
+  const file = tasks.find((task) => task.files.some((item) => item.path === selected))?.primary_file || tasks[0]?.primary_file || ''
   useEffect(() => { if (file && !selected) setSelected(file) }, [file, selected])
   const logs = useQuery({ queryKey: ['collectionLogs', file], queryFn: async () => (await dataApi.getCollectionLogs(file)).data, enabled: active && !!file, retry: false, refetchInterval: active ? 10000 : false })
   const reviewPlan = useQuery({ queryKey: ['supplement', file], queryFn: async () => (await dataApi.getSupplement(file)).data, enabled: active && !!file, retry: false })
@@ -29,7 +32,7 @@ export function CollectionLogsPage({ active }: { active: boolean }) {
   const outdated = isAxiosError(logs.error) && logs.error.response?.status === 404
   return <div className="flex min-h-0 flex-1 flex-col gap-4" aria-label={t('pages.logs')}>
     <div className="flex shrink-0 flex-wrap items-end gap-3">
-      <label className="min-w-0 flex-1 space-y-1.5 text-xs text-cyber-text-secondary">{t('batch')}<select aria-label={t('batch')} value={file} onChange={(event) => { setSelected(event.target.value); setRound('all') }} className={`${inputClass} w-full`}><option value="" disabled>{t('chooseBatch')}</option>{files.map((item) => <option key={item.path} value={item.path}>{item.name}</option>)}</select></label>
+      <label className="min-w-0 flex-1 space-y-1.5 text-xs text-cyber-text-secondary">{t('batch')}<select aria-label={t('batch')} value={file} onChange={(event) => { setSelected(event.target.value); setRound('all') }} className={`${inputClass} w-full`}><option value="" disabled>{t('chooseBatch')}</option>{tasks.map((task) => <option key={task.id} value={task.primary_file}>{taskLabel(task, td)}</option>)}</select></label>
       <label className="space-y-1.5 text-xs text-cyber-text-secondary">{t('logs.roundFilter')}<select aria-label={t('logs.roundFilter')} value={round} onChange={(event) => setRound(event.target.value)} className={`${inputClass} block`}><option value="all">{t('logs.allRounds')}</option>{logs.data?.rounds.map((item) => <option key={item.number} value={item.number}>{t('logs.round', { count: item.number })}</option>)}</select></label>
       <Button variant="outline" disabled={refreshing} onClick={() => { void filesQuery.refetch(); void logs.refetch(); void reviewPlan.refetch() }}><RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />{t('rescan')}</Button>
     </div>
@@ -43,6 +46,7 @@ export function CollectionLogsPage({ active }: { active: boolean }) {
       <label className="relative min-w-0"><Search className="absolute left-3 top-3 h-4 w-4 text-cyber-text-secondary" /><input aria-label={t('logs.search')} placeholder={t('logs.search')} value={search} onChange={(event) => setSearch(event.target.value)} className={`${inputClass} w-56 max-w-full pl-9`} /></label>
     </div>
     <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-cyber-border-subtle bg-cyber-bg-panel">
+      {logs.data && <CollectionLogDetails data={logs.data} />}
       {!!logs.data?.comment_events?.length && <section className="border-b border-cyber-border-subtle p-4 text-sm text-cyber-text-primary" aria-label={t('logs.commentTitle')}>
         <details open><summary className="cursor-pointer font-semibold">{t('logs.commentTitle')} · {logs.data.comment_events.length}</summary>
           <p className="my-3 text-xs text-cyber-text-secondary">{t('logs.commentScope')}</p>

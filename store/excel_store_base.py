@@ -256,7 +256,7 @@ class ExcelStoreBase(AbstractStore):
             os.environ.get("MEDIACRAWLER_SEMANTIC_FILTER") == "1"
             and platform in ("weibo", "xhs") and crawler_type == "search"
         ):
-            from semantic_filter import MODEL, StreamingSemanticFilter
+            from semantic_filter import MODEL, StreamingSemanticFilter, COMMENT_SAMPLE_LIMIT
 
             pairs = [tuple(pair) for pair in json.loads(os.environ.get("MEDIACRAWLER_KEYWORD_PAIRS", "[]"))]
             api_key = os.environ.get("TYPESAFE_API_KEY", "")
@@ -266,7 +266,7 @@ class ExcelStoreBase(AbstractStore):
             self.semantic_stream = StreamingSemanticFilter(
                 self.filename, pairs, api_key,
                 model=model,
-                comment_budget=max(0, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES) if platform == "weibo" else None,
+                comment_budget=min(COMMENT_SAMPLE_LIMIT, max(0, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES)),
             )
 
         utils.logger.info(f"[ExcelStoreBase] Initialized Excel export to: {self.filename}")
@@ -531,8 +531,12 @@ class ExcelStoreBase(AbstractStore):
                 "jev_original_object_type": state.note.get("jev_original_object_type"),
                 "original_semantic_source": state.note.get("original_semantic_source"),
             }
-            from semantic_rules import RULE_VERSION
-            annotated_note["semantic_rule_version"] = RULE_VERSION
+            if state.note.get('semantic_rule') == 'topic':
+                annotated_note.update(semantic_rule='topic', topic_evidence=state.note.get('topic_evidence'))
+            if state.note.get('semantic_rule') == 'evaluation':
+                annotated_note.update(semantic_rule='evaluation', evaluation_evidence=state.note.get('evaluation_evidence'),
+                                      evaluation_target_evidence=state.note.get('evaluation_target_evidence'))
+            annotated_note["semantic_rule_version"] = self.semantic_stream.rule_version
             annotated_note.update({name: value for name, value in note.items() if name not in annotated_note})
             headers = list(annotated_note)
             if state.status == "matched":

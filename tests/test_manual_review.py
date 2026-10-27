@@ -79,7 +79,7 @@ def test_download_recovery_preserves_human_mark_and_reset(collection, human):
 def test_collection_gate_cannot_be_overridden_but_keeps_human_marks(collection,reason,body):
     root,path,client=collection
     notes=json.loads(path.read_text(encoding='utf-8'))
-    notes[0].update(content=body,semantic_result='review',semantic_source='comments_unavailable',semantic_comment_stop_reason='comments_fetch_failed')
+    notes[0].update(semantic_rule='evaluation', evaluation_evidence='公园雕塑真可爱', evaluation_target_evidence='公园雕塑真可爱', content=body,semantic_result='review',semantic_source='comments_unavailable',semantic_comment_stop_reason='comments_fetch_failed')
     path.write_text(json.dumps(notes,ensure_ascii=False),encoding='utf-8')
     change(client,decision='qualified')
     change(client,kind='post',decision='qualified')
@@ -96,7 +96,7 @@ def test_collection_gate_cannot_be_overridden_but_keeps_human_marks(collection,r
     ({'jev_original_choice':'review','semantic_object_type':'pet'},'pet_not_allowed'),
     ({'jev_original_choice':'keep','jev_original_object_type':'pet'},'pet_not_allowed'),
 ])
-def test_legacy_jev_negative_is_excluded_despite_positive_images_and_override(collection,fields,reason):
+def test_legacy_object_restrictions_cannot_block_explicit_post_approval(collection,fields,reason):
     root,path,client=collection
     notes=json.loads(path.read_text(encoding='utf-8'))
     notes[0].update(fields)
@@ -105,9 +105,9 @@ def test_legacy_jev_negative_is_excluded_despite_positive_images_and_override(co
     change(client)
     change(client,kind='post',decision='qualified')
     entry=annotations(root,path)['entries']['1:可爱 公园']
-    assert entry['decision']==entry['automatic_decision']=='unqualified'
-    assert entry['decision_reason']==entry['semantic_rejection_reason']==reason
-    assert entry['decision_source']=='automatic'
+    assert entry['decision']=='qualified' and entry['automatic_decision'] is None
+    assert entry['decision_reason']=='manual_qualified' and entry['semantic_rejection_reason'] is None
+    assert entry['decision_source']=='manual'
     assert entry['images']['001.jpg']=='qualified'
     assert entry['post_decision']=='qualified'  # Preserve the old mark for audit.
     assert path.read_bytes()==original
@@ -115,13 +115,14 @@ def test_legacy_jev_negative_is_excluded_despite_positive_images_and_override(co
     from api.services.supplement import plan
     status=plan(root,path,SimpleNamespace(status='idle',task_credentials={}))
     group=next(group for group in status['groups'] if group['keyword']=='可爱 公园')
-    assert group['retained']==0 and group['excluded']==1
+    assert group['retained']==1 and group['excluded']==0
 
 
 def test_derived_decision_roundtrip_and_source_untouched(collection):
     root, path, client = collection
     original = hashlib.sha256(path.read_bytes()).hexdigest()
     change(client)
+    change(client, kind='post', decision='qualified')
     change(client, kind='account', decision='non_marketing')
     state = client.get('/api/data/review', params={'file': 'weibo/posts.json'}).json()
     assert state['completed'] == 1
@@ -131,7 +132,7 @@ def test_derived_decision_roundtrip_and_source_untouched(collection):
     # New reader/process loads marks from disk, not an in-memory cache.
     assert 'decision' not in json.loads(storage_path(root, path).read_text(encoding='utf-8'))['posts']['1:可爱 公园']
     change(client, kind='account', decision=None)
-    assert annotations(root, path)['completed'] == 0
+    assert annotations(root, path)['completed'] == 1  # Account confirmation is no longer required.
     assert annotations(root, path)['entries']['1:可爱 公园']['images']['001.jpg'] == 'qualified'
 
 
@@ -177,7 +178,7 @@ def test_simultaneous_changes_merge_without_lost_fields(collection):
     root, path, _ = collection
     with ThreadPoolExecutor(max_workers=3) as executor:
         jobs = [executor.submit(update_annotation, root, path, '1:可爱 公园', kind, decision, image)
-                for kind, decision, image in [('image', 'qualified', '001.jpg'), ('image', 'unqualified', '002.png'), ('account', 'non_marketing', None)]]
+                for kind, decision, image in [('image', 'qualified', '001.jpg'), ('image', 'unqualified', '002.png'), ('account', 'non_marketing', None), ('post', 'qualified', None)]]
         for job in jobs:
             job.result()
     entry = annotations(root, path)['entries']['1:可爱 公园']
@@ -194,15 +195,15 @@ def test_simultaneous_changes_merge_without_lost_fields(collection):
     ('non_marketing', ['unqualified', 'unqualified'], 'unqualified', 'all_images_rejected'),
     ('non_marketing', ['unqualified', None], None, 'images_pending'),
     ('non_marketing', [None, None], None, 'images_pending'),
-    (None, ['qualified', 'unqualified'], None, 'account_pending'),
+    (None, ['qualified', 'unqualified'], 'qualified', 'retained'),
     (None, ['unqualified', 'unqualified'], 'unqualified', 'all_images_rejected'),
-    (None, [None], None, 'account_pending'),
+    (None, [None], None, 'images_pending'),
     ('non_marketing', [], 'unqualified', 'no_images'),
 ])
 def test_review_outcome_matrix(account, values, expected, reason):
     imgs = [{'key': str(i)} for i in range(len(values))]
     decisions = {str(i): value for i, value in enumerate(values)}
-    assert review_outcome(account, imgs, decisions) == (expected, reason)
+    assert review_outcome(account, imgs, decisions) == (('unqualified', 'marketing') if account == 'marketing' else (None, 'text_review_pending'))
 
 
 def test_legacy_post_labels_and_obsolete_images_cannot_override_outcome(collection):
@@ -214,10 +215,10 @@ def test_legacy_post_labels_and_obsolete_images_cannot_override_outcome(collecti
     state['posts']['1:可爱 公园']['decision'] = 'unqualified'
     state['posts']['1:可爱 公园']['images']['obsolete.jpg'] = 'qualified'
     target.write_text(json.dumps(state), encoding='utf-8')
-    assert annotations(root, path)['entries']['1:可爱 公园']['decision'] == 'qualified'
+    assert annotations(root, path)['entries']['1:可爱 公园']['decision'] is None
     change(client, decision='unqualified')
     change(client, image='002.png', decision='unqualified')
-    assert annotations(root, path)['entries']['1:可爱 公园']['decision'] == 'unqualified'
+    assert annotations(root, path)['entries']['1:可爱 公园']['decision'] is None
     change(client, image='002.png', decision=None)
     assert annotations(root, path)['entries']['1:可爱 公园']['decision'] is None
 
@@ -252,7 +253,7 @@ def test_manual_post_correction_persists_and_reset_restores_automatic_result(col
     assert entry['decision'] == 'unqualified'
     assert entry['decision_reason'] == 'manual_unqualified'
     assert entry['decision_source'] == entry['post_decision_source'] == 'manual'
-    assert entry['automatic_decision'] == 'qualified'
+    assert entry['automatic_decision'] is None
     assert entry['account'] == 'non_marketing' and entry['images']['001.jpg'] == 'qualified'
     # Account/image changes and a new reader must preserve the final correction.
     change(client, kind='account', decision='marketing')
@@ -301,7 +302,7 @@ def test_partial_save_reads_only_affected_posts_and_matches_full_review(collecti
     assert response.status_code == 200
     patch = response.json()
     assert patch['partial'] is True and set(patch['entries']) == expected_keys
-    assert reads == expected_reads  # No other post's prediction files are opened.
+    assert reads == []  # Review never opens prediction files, including legacy image changes.
     full = client.get('/api/data/review', params={'file': 'weibo/posts.json'}).json()
     assert full['total'] == 5 and len(full['entries']) == 5
     assert patch['entries'] == {key: full['entries'][key] for key in expected_keys}

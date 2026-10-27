@@ -22,3 +22,12 @@ def get_dashboard(period: Literal['task', 'today', 'week', 'month', 'year', 'cus
         raise HTTPException(status_code=422, detail='dashboard_data_unavailable') from exc
     except (OSError, KeyError, TypeError):
         raise HTTPException(status_code=422, detail='dashboard_data_unavailable')
+
+
+@router.get('/progress')
+def get_collection_progress():
+    from api.services.dashboard import collection_progress
+    try:
+        return collection_progress(data_root(), crawler_manager)
+    except (OSError, ValueError, KeyError, TypeError):
+        raise HTTPException(422, 'collection_progress_unavailable') from None

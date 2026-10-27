@@ -1,16 +1,32 @@
 {
   "header": {
     "title": "SYSTEM_CONSOLE",
-    "entries": "{{count}} entries",
+    "entries": "{{count}} total · {{visible}} shown",
     "active": "ACTIVE",
     "clear": "CLEAR",
-    "restore": "RESTORE ALL LOGS"
+    "restore": "RESTORE ALL LOGS",
+    "pause": "Pause display",
+    "paused": "Paused",
+    "follow": "Follow latest",
+    "following": "Following",
+    "history": "Load history",
+    "historyHint": "Up to 500 recent logs from the current run",
+    "loading": "Loading…",
+    "expand": "Expand console",
+    "collapse": "Collapse console"
   },
   "banner": {
     "systemInit": "[SYS] System initialized successfully",
-    "configHint": "[INFO] Configure parameters and initiate scan sequence..."
+    "configHint": "Waiting for logs. Start a task to see collection progress."
   },
   "footer": {
-    "awaiting": "awaiting_command..."
+    "awaiting": "awaiting_command...",
+    "recent": "Showing the latest 50 entries. Expand long messages; scrolling up pauses the display.",
+    "paused": "Display paused; new logs are still received. Click Follow latest to resume.",
+    "historyError": "Could not load history. Please try again."
+  },
+  "line": {
+    "expand": "Expand details",
+    "collapse": "Collapse details"
   }
 }

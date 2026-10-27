@@ -15,7 +15,7 @@ from collection_tasks import read_task, runs, safe_path, task_files
 from semantic_quality import saved_collection_rejection, saved_jev_rejection
 
 SHANGHAI = ZoneInfo('Asia/Shanghai')
-DONE = {'target_reached', 'search_exhausted', 'duplicate_pages', 'page_budget'}
+DONE = {'target_reached', 'search_exhausted', 'duplicate_pages', 'page_budget', 'time_range_exhausted'}
 
 
 def timestamp(value):
@@ -51,6 +51,7 @@ def select_task(root, manager, task_id=None):
 def collect_dataset(root, files):
     notes, comments = {}, {}
     missing = []
+    checked = 0
     for relative in files:
         path = safe_path(root, relative)
         if not path.is_file():
@@ -61,6 +62,10 @@ def collect_dataset(root, files):
         if path.suffix.lower() == '.xlsx':
             book = load_workbook(path, read_only=True, data_only=True)
             try:
+                if path.name.endswith('_semantic.xlsx') and 'Summary' in book:
+                    summary = {row[0]: row[1] for row in book['Summary'].values if len(row) >= 2}
+                    checked += sum(value for key in ('matched', 'review', 'excluded', 'pending', 'duplicate')
+                                   if isinstance(value := summary.get(key), int) and not isinstance(value, bool))
                 if 'Excluded' in book:
                     values = iter(book['Excluded'].values)
                     headers = next(values, ())
@@ -73,7 +78,7 @@ def collect_dataset(root, files):
             notes.setdefault(note_key(note), {**note, '_collection_file': relative})
         for nid, items in by_note.items():
             comments.setdefault(nid, []).extend(items)
-    return list(notes.values()), comments, missing
+    return list(notes.values()), comments, missing, checked
 
 
 def date_range(period, start, end, times, now):
@@ -118,11 +123,11 @@ def dashboard_snapshot(root, manager, period='task', start=None, end=None, task_
     files = task_files(root, task) if task else []
     if not task:
         # Older exports without lineage remain inspectable without inventing a task target.
-        legacy = [path for path in collection_files(root) if not path.name.endswith('_semantic.xlsx') and 'comment' not in path.name.lower()]
+        legacy = [path for path in collection_files(root) if 'comment' not in path.name.lower()]
         if legacy:
             files = [max(legacy, key=lambda path: path.stat().st_mtime).relative_to(root).as_posix()]
-    notes, comments, missing = collect_dataset(root, files)
-    review_path = safe_path(root, task.get('anchor') or files[0]) if files else None
+    notes, comments, missing, checked = collect_dataset(root, files)
+    review_path = safe_path(root, (task or {}).get('anchor') or files[0]) if files else None
     review = annotations(root, review_path, persist=False, dataset=(notes, comments)) if review_path else {'entries': {}}
     targets = task.get('targets', {}) if task else {}
     keywords = list(dict.fromkeys([*targets, *[text(note.get('source_keyword')) for note in notes]]))
@@ -142,17 +147,19 @@ def dashboard_snapshot(root, manager, period='task', start=None, end=None, task_
         status = note.get('semantic_result')
         rejection = entry.get('semantic_rejection_reason') or entry.get('account_rejection_reason') or saved_jev_rejection(note) or saved_collection_rejection(note, comments.get(nid, []))
         qualified = not rejection and status not in {'excluded', 'duplicate', 'pending'} and (status in {'matched', 'review'} or not (task or {}).get('config', {}).get('semantic_filter'))
+        if note.get('semantic_rule') in {'topic', 'evaluation'} and status != 'matched':
+            qualified = False
         groups[keyword]['collected'] += 1
         groups[keyword]['qualified'] += int(qualified)
         qualified_total += int(qualified)
-        human = entry.get('decision_source') == 'manual' or entry.get('account_source') == 'manual' or any(image.get('decision_source') == 'manual' and entry['images'].get(image['key']) for image in entry['review_images'])
+        human = entry.get('decision_source') == 'manual'
         pending_review += int(qualified and (entry.get('decision') is None or not human))
         downloaded = 0
         for image in entry['review_images']:
             identity = image.get('url') if image.get('local') else f'{nid}:{image["key"]}'
             if identity in images:
                 continue
-            prediction = image.get('subject', {})
+            prediction = {}
             problem = image.get('download_problem')
             download = 'downloaded' if image.get('local') and not problem else 'failed' if image.get('local') and problem else 'pending'
             suggestion = prediction.get('suggestion')
@@ -179,18 +186,48 @@ def dashboard_snapshot(root, manager, period='task', start=None, end=None, task_
     selected_events = [event for event in events if begin <= event['at'] <= finish]
     ranking = Counter(event['keyword'] for event in selected_events)
     accepted = Counter(event['keyword'] for event in selected_events if event['qualified'])
-    platform = (task or {}).get('config', {}).get('platform') or ('wb' if files and ('weibo' in files[0] or 'wb/' in files[0]) else '')
+    platform = (task or {}).get('config', {}).get('platform') or ('xhs' if files and ('xhs/' in files[0] or Path(files[0]).name.startswith('xhs_')) else 'wb' if files and ('weibo' in files[0] or 'wb/' in files[0]) else '')
     saved_status = run_records[-1].get('status', 'idle') if run_records else 'idle'
     if not running and saved_status in {'running', 'starting'}:
         saved_status = 'interrupted'
     return {'updated_at': now.isoformat(), 'task': {'id': task['id'] if task else None, 'platform': platform,
             'file': (task or {}).get('anchor') or (files[0] if files else None), 'files': files,
-            'status': manager.status if running else saved_status,
+            'status': (getattr(manager, 'stage', 'running') if manager.status == 'running' else manager.status) if running else saved_status,
             'started_at': run_records[0].get('started_at') if run_records else None, 'current_keyword': current,
             'completed_groups': sum(group['status'] == 'completed' for group in groups.values()), 'total_groups': len(groups)},
-            'metrics': {'collected_posts': len(notes), 'qualified_posts': qualified_total, 'pending_review': pending_review, 'images': image_counts},
+            'metrics': {'collected_posts': len(notes), 'checked_posts': max(len(notes), checked, sum(
+                result.get('diagnostics', {}).get('evaluated', 0)
+                for run in run_records for result in run.get('results', {}).values())),
+                'qualified_posts': qualified_total, 'collected_comments': sum(len({text(c.get('comment_id') or c.get('id')) or text(c.get('content')) for c in items}) for items in comments.values()), 'pending_review': pending_review, 'images': image_counts},
             'groups': list(groups.values()), 'ranking': [{'keyword': key, 'collected': ranking[key], 'qualified': accepted[key]} for key in keywords],
             'trend': make_trend(selected_events, begin, finish),
             'group_trends': {key: make_trend([event for event in selected_events if event['keyword'] == key], begin, finish) for key in keywords},
             'range': {'start': begin.isoformat(), 'end': finish.isoformat(), 'period': period},
             'images': downloaded_images, 'missing_files': missing, 'unknown_time_posts': unknown_time}
+
+
+def collection_progress(root, manager):
+    """Progress for this backend session only; never substitute an older task."""
+    run_path = getattr(manager, 'collection_run', None)
+    status = manager.status
+    stage = getattr(manager, 'stage', 'idle')
+    result = {'session_id': manager.log_session_id, 'status': status, 'stage': stage,
+              'started_at': manager.started_at.isoformat() if manager.started_at else None,
+              'task_id': None, 'current_keyword': '', 'checked': 0, 'saved': 0, 'qualified': 0,
+              'target': None, 'percent': None, 'comments': 0, 'images': 0, 'completed_topics': 0,
+              'total_topics': 0, 'updated_at': datetime.now(timezone.utc).isoformat()}
+    if not run_path or not Path(run_path).is_file():
+        return result
+    run = json.loads(Path(run_path).read_text(encoding='utf-8'))
+    result['run_status'] = run.get('status')
+    data = dashboard_snapshot(root, manager, task_id=run['task_id'])
+    groups = [group for group in data['groups'] if isinstance(group.get('target'), int) and group['target'] > 0]
+    target = sum(group['target'] for group in groups) or None
+    achieved = sum(min(group['qualified'], group['target']) for group in groups)
+    result.update(task_id=run['task_id'], current_keyword=data['task']['current_keyword'],
+                  checked=data['metrics']['checked_posts'], saved=data['metrics']['collected_posts'],
+                  qualified=data['metrics']['qualified_posts'], target=target,
+                  percent=round(100 * achieved / target) if target else None,
+                  comments=data['metrics']['collected_comments'], images=data['metrics']['images']['downloaded'],
+                  completed_topics=data['task']['completed_groups'], total_topics=data['task']['total_groups'])
+    return result

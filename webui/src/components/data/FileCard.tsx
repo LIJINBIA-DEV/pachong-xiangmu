@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { dataApi } from '@/lib/api'
 import { formatFileSize, formatDateTime } from '@/lib/utils'
+import { fileLabel } from '@/lib/fileLabels'
 import { DataPreviewDialog } from './preview/DataPreviewDialog'
 import { DeleteFileButton } from './FileDeletion'
 import type { DataFile } from '@/types/crawler'
@@ -77,9 +78,15 @@ export function FileCard({ file, onBrowse }: FileCardProps) {
               <Icon className="w-6 h-6" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-mono font-medium text-sm text-cyber-text-primary truncate" title={file.name}>
-                {file.name}
+              <h3 className="font-medium text-sm text-cyber-text-primary" title={file.name}>
+                {fileLabel(file, t)}
               </h3>
+              {file.file_kind && <p className="mt-1 break-all text-[11px] font-mono text-cyber-text-muted" title={file.name}>{file.name}</p>}
+              {file.file_kind && <p className="mt-2 text-sm text-cyber-text-primary">
+                {file.retained_count != null && file.review_count != null
+                  ? t('file.postCounts', { retained: file.retained_count, review: file.review_count })
+                  : t('file.countsUnavailable')}
+              </p>}
               <p className="text-xs text-cyber-text-muted mt-1 font-mono">
                 {formatFileSize(file.size)}
                 {file.record_count !== null && (

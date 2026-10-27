@@ -59,11 +59,11 @@ def test_counts_use_current_task_real_evidence_and_model_denominator(task_data):
     assert result['task']['completed_groups'] == 1
     assert result['task']['current_keyword'] == '萌 雕塑'
     assert result['metrics']['collected_posts'] == 4
-    assert result['metrics']['qualified_posts'] == 2  # Missing evidence and comment failure are gated.
+    assert result['metrics']['qualified_posts'] == 4  # Legacy results are readable without obsolete spatial gates.
     counts = result['metrics']['images']
-    assert counts == {'downloaded': 5, 'download_pending': 1, 'download_failed': 1, 'qualified': 2, 'unqualified': 1, 'pending': 1, 'failed': 1, 'recognized': 3, 'pass_rate': 66.7}
+    assert counts == {'downloaded': 6, 'download_pending': 1, 'download_failed': 0, 'qualified': 0, 'unqualified': 0, 'pending': 6, 'failed': 0, 'recognized': 0, 'pass_rate': None}
     assert sum(point['collected'] for point in result['trend']) == 4
-    assert sum(point['qualified'] for point in result['trend']) == 2
+    assert sum(point['qualified'] for point in result['trend']) == 4
     after = {file.relative_to(root).as_posix(): hashlib.sha256(file.read_bytes()).hexdigest() for file in root.rglob('*') if file.is_file()}
     assert before == after
 
@@ -98,6 +98,20 @@ def test_no_data_and_no_model_decisions_show_zero_and_unknown_rate(tmp_path):
     assert not (tmp_path / '.manual-review').exists()
 
 
+def test_all_rejected_legacy_semantic_file_still_shows_checked_posts(tmp_path):
+    from openpyxl import Workbook
+    book = Workbook()
+    book.active.title = 'Matched'
+    book.active.append(['note_id', 'source_keyword'])
+    summary = book.create_sheet('Summary')
+    summary.append(['matched', 0])
+    summary.append(['excluded', 35])
+    book.save(tmp_path/'xhs_search_semantic.xlsx')
+    result = dashboard_snapshot(tmp_path, SimpleNamespace(status='idle', collection_run=None))
+    assert result['metrics']['checked_posts'] == 35
+    assert result['metrics']['qualified_posts'] == 0
+
+
 def test_endpoint_validates_filters_and_never_exposes_task_secrets(task_data, monkeypatch):
     root, _, task, manager = task_data
     monkeypatch.setattr(router_module, 'data_root', lambda: root)
@@ -112,3 +126,43 @@ def test_endpoint_validates_filters_and_never_exposes_task_secrets(task_data, mo
     saved = json.loads(metadata.read_text(encoding='utf-8')); saved['config'].update(cookies='PRIVATE_COOKIE', semantic_api_key='PRIVATE_KEY'); atomic_json(metadata, saved)
     response = client.get('/api/dashboard')
     assert 'PRIVATE_' not in response.text
+
+
+def test_live_progress_ignores_old_tasks_until_this_session_has_a_run(task_data):
+    from api.services.dashboard import collection_progress
+    root, _, _, manager = task_data
+    manager.collection_run = None
+    manager.stage = 'waiting_login'
+    manager.started_at = None
+    manager.log_session_id = 'fresh-session'
+    result = collection_progress(root, manager)
+    assert result['task_id'] is None
+    assert result['saved'] == 0 and result['percent'] is None
+
+
+def test_live_progress_counts_actual_task_without_overstating_topic_targets(task_data):
+    from api.services.dashboard import collection_progress
+    root, _, task, manager = task_data
+    manager.stage = 'running'
+    manager.started_at = datetime.now(timezone.utc)
+    manager.log_session_id = 'this-session'
+    result = collection_progress(root, manager)
+    assert result['task_id'] == task['id']
+    assert result['saved'] == 4 and result['qualified'] == 4
+    assert result['target'] == 30 and result['percent'] == 13
+    assert result['images'] == 6
+    assert result['current_keyword'] == '萌 雕塑'
+    manager.status = 'idle'
+    finish_run(manager.collection_run, 'stopped')
+    assert collection_progress(root, manager)['run_status'] == 'stopped'
+
+
+def test_progress_caps_each_topic_before_summing(task_data):
+    from api.services.dashboard import collection_progress
+    root, _, task, manager = task_data
+    meta = root / '.collection-tasks' / task['id'] / 'task.json'
+    value = json.loads(meta.read_text()); value['targets'] = {'可爱 公园': 1, '萌 雕塑': 10}
+    atomic_json(meta, value)
+    manager.stage = 'running'; manager.started_at = None; manager.log_session_id = 'session'
+    result = collection_progress(root, manager)
+    assert result['percent'] == 18  # An excess in one theme cannot fill another theme's quota.

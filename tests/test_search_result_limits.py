@@ -35,8 +35,13 @@ async def test_weibo_limit_spans_pages_without_exceeding_count(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_xhs_processes_last_page_but_respects_smaller_limit(monkeypatch):
+async def test_xhs_processes_last_page_but_respects_smaller_limit(monkeypatch, tmp_path):
     from media_platform.xhs import core
+    from collection_tasks import create_task, prepare_run, SearchProgress
+
+    task = create_task(tmp_path, {'platform': 'xhs'}, {'可爱 公园': 5})
+    run = prepare_run(tmp_path, task, task['targets'])
+    monkeypatch.setenv('MEDIACRAWLER_COLLECTION_RUN', str(run))
 
     monkeypatch.setattr(core.config, "KEYWORDS", "可爱 公园")
     monkeypatch.setattr(core.config, "START_PAGE", 1)
@@ -59,6 +64,10 @@ async def test_xhs_processes_last_page_but_respects_smaller_limit(monkeypatch):
 
     assert crawler.xhs_client.get_note_by_keyword.await_count == 1
     assert saved.await_count == 5
+    result = SearchProgress().run['results']['可爱 公园']
+    assert result['retained'] == 5 and result['reason'] == 'target_reached'
+    assert result['diagnostics']['evaluated'] == 5
+    assert result['diagnostics']['checked_page'] == 1
 
 
 @pytest.mark.asyncio

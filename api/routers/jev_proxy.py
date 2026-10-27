@@ -1,5 +1,4 @@
 """API for the bundled Jev-only proxy. Private values are write-only."""
-import os
 
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
@@ -85,5 +84,7 @@ async def test_proxy(request: TestRequest, response: Response):
     response.headers["Cache-Control"] = "no-store"
     if not jev_proxy.bundled_available():
         raise HTTPException(status_code=400, detail="proxy_unavailable")
-    key = (request.api_key.get_secret_value() if request.api_key else "") or os.environ.get("TYPESAFE_API_KEY", "")
+    from api.routers.data import data_root
+    from api.services.semantic_settings import runtime_key
+    key = (request.api_key.get_secret_value() if request.api_key else "") or runtime_key(data_root())
     return await check_jev_connection(key.strip())

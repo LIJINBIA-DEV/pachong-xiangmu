@@ -1,16 +1,32 @@
 {
   "header": {
     "title": "系统控制台",
-    "entries": "{{count}} 条记录",
+    "entries": "累计 {{count}} 条 · 显示 {{visible}} 条",
     "active": "活跃",
     "clear": "清除",
-    "restore": "恢复所有日志"
+    "restore": "恢复所有日志",
+    "pause": "暂停显示",
+    "paused": "已暂停",
+    "follow": "跟随最新",
+    "following": "跟随最新",
+    "history": "加载历史",
+    "historyHint": "最多加载当前任务最近 500 条日志",
+    "loading": "加载中…",
+    "expand": "展开控制台",
+    "collapse": "收起控制台"
   },
   "banner": {
     "systemInit": "[系统] 系统初始化成功",
-    "configHint": "[信息] 配置参数并启动扫描序列..."
+    "configHint": "等待采集日志。开始任务后，这里会显示运行进度。"
   },
   "footer": {
-    "awaiting": "等待命令..."
+    "awaiting": "等待命令...",
+    "recent": "默认显示最近 50 条；长内容可展开；向上翻阅会暂停显示。",
+    "paused": "画面已暂停，新日志仍在接收。点击“跟随最新”恢复。",
+    "historyError": "历史日志加载失败，请重试。"
+  },
+  "line": {
+    "expand": "展开详情",
+    "collapse": "收起详情"
   }
 }

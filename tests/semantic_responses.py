@@ -9,7 +9,8 @@ def grounded_response(request, choice="keep", *, kind="place", relation="target_
     if "support" in payload["questions"]:
         return httpx.Response(200, json={"answers": {"support": {"choice": "supported", "confidence": 0.95}}, "usage": {"input_tokens": 20}})
     options = payload["questions"]["evidence_text"]["criteria"]
-    first, second = payload["state"]["keyword1"], payload["state"]["keyword2"]
+    first = payload["state"].get("keyword1", payload["state"].get("evaluation"))
+    second = payload["state"].get("keyword2", payload["state"].get("target"))
     evaluation = next((key for key, value in options.items() if first in value and (not source or value.startswith(f"[{source},"))), "unclear")
     location = next((key for key, value in options.items() if second in value), "unclear")
     return httpx.Response(200, json={"answers": {

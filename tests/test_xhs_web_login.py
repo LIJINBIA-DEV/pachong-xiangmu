@@ -17,6 +17,7 @@ def credentials():
 
 def fake_browser(monkeypatch, service):
     import api.services.xhs_login as module
+    service.login_environment = 'server'
     page = SimpleNamespace(goto=AsyncMock(), locator=lambda _: SimpleNamespace(inner_text=AsyncMock(return_value='扫码登录')))
     context = SimpleNamespace(new_page=AsyncMock(return_value=page), close=AsyncMock(),
                               storage_state=AsyncMock(return_value=credentials()))
@@ -103,19 +104,22 @@ async def test_failed_refresh_keeps_previous_session(tmp_path, monkeypatch, outc
     browser.close.assert_awaited_once()
 
 
-def test_api_routes_are_private_and_desktop_is_unsupported(tmp_path, monkeypatch):
+def test_api_routes_are_private_and_desktop_login_is_supported(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from api.routers.crawler import router
     import api.services.xhs_login as module
     monkeypatch.setattr(module, 'xhs_web_login', XhsWebLogin(tmp_path))
     monkeypatch.delenv('MEDIACRAWLER_CONTAINER_MODE', raising=False)
+    service = module.xhs_web_login
+    service._run = AsyncMock()
     app = FastAPI(); app.include_router(router, prefix='/api')
     with TestClient(app) as client:
         response = client.get('/api/crawler/xhs-login')
         assert response.headers['cache-control'] == 'no-store'
-        assert response.json()['supported'] is False
-        assert client.post('/api/crawler/xhs-login', json={}).status_code == 409
+        assert response.json()['supported'] is True
+        assert client.post('/api/crawler/xhs-login', json={'login_environment': 'local'}).status_code == 200
+        assert service.login_environment == 'local'
 
 
 @pytest.mark.asyncio

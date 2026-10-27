@@ -168,17 +168,19 @@ async def test_container_crawler_uses_qr_session_without_cookie_arguments(tmp_pa
     assert '--cookies' not in commands[0]
 
 
-def test_api_status_is_uncached_and_desktop_is_unsupported(tmp_path, monkeypatch):
+def test_api_status_is_uncached_and_explicit_server_login_is_supported(tmp_path, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from api.routers.crawler import router
     import api.services.weibo_login as module
     service=WeiboWebLogin(tmp_path)
+    service._run = AsyncMock()
     monkeypatch.setattr(module,'weibo_web_login',service)
     monkeypatch.delenv('MEDIACRAWLER_CONTAINER_MODE',raising=False)
     app=FastAPI(); app.include_router(router,prefix='/api')
     with TestClient(app) as client:
         response=client.get('/api/crawler/weibo-login')
         assert response.headers['cache-control']=='no-store'
-        assert response.json()['supported'] is False
-        assert client.post('/api/crawler/weibo-login',json={}).status_code==409
+        assert response.json()['supported'] is True
+        assert client.post('/api/crawler/weibo-login',json={'login_environment': 'server'}).status_code==200
+        assert service.login_environment == 'server'

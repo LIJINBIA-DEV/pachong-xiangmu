@@ -1,8 +1,7 @@
-"""Persist model image defaults and human overrides outside collection files."""
+"""Persist post review decisions independently of optional media."""
 import ast
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
-from functools import lru_cache
 import hashlib
 import json
 import os
@@ -84,7 +83,7 @@ def review_images(root, path, note):
     result = []
     for index, name in enumerate(names):
         item = local.pop(name, None)
-        result.append({**(item or {'name': name, 'url': urls[index] if index < len(urls) else '', 'local': False}), 'key': name})
+        result.append({**(item or {'name': name, 'url': urls[index] if index < len(urls) else '', 'local': False}), 'key': name, 'remote_url': urls[index] if index < len(urls) else ''})
     result.extend({**item, 'key': name} for name, item in local.items())
     return result
 
@@ -120,20 +119,11 @@ def note_key(note):
     return text(note.get('note_id') or note.get('aweme_id')) + ':' + text(note.get('source_keyword'))
 
 
-def review_outcome(account, imgs, decisions):
-    """Derive the post outcome only from current account and image labels."""
+def review_outcome(account, imgs, decisions, *, requires_images=False):
+    """Media presence and historical image marks never determine a post outcome."""
     if account == 'marketing':
         return 'unqualified', 'marketing'
-    if not imgs:
-        return 'unqualified', 'no_images'
-    values = [decisions.get(image['key']) for image in imgs]
-    if all(value == 'unqualified' for value in values):
-        return 'unqualified', 'all_images_rejected'
-    if account != 'non_marketing':
-        return None, 'account_pending'
-    if 'qualified' in values:
-        return 'qualified', 'retained'
-    return None, 'images_pending'
+    return None, 'text_review_pending'
 
 
 def account_identities(root, path, notes):
@@ -173,8 +163,6 @@ def apply_account_defaults(root, path, notes, state, identities=None):
 
 
 def annotations(root, path, keys=None, *, persist=True, dataset=None):
-    from image_subject import cached_prediction, fingerprint, image_suggestion
-    model_version = {'local': fingerprint(), 'siliconflow': fingerprint(provider='siliconflow')}
     notes, comments = dataset if dataset is not None else load_review_dataset(root, path)
     # Aggregate before narrowing a PATCH response so the same author cannot
     # lose a hard exclusion because only one of their posts was requested.
@@ -186,37 +174,10 @@ def annotations(root, path, keys=None, *, persist=True, dataset=None):
         prepared[note_key(note)] = []
         for image in review_images(root, path, note):
             problem = image_download_problem(root, image)
-            subject = {'status': problem} if problem else cached_prediction(root, image, model_version)
-            prepared[note_key(note)].append({**image, 'subject': subject, 'download_problem': problem})
+            prepared[note_key(note)].append({**image, 'download_problem': problem})
     with state_lock(root, path) if persist else nullcontext():
         state = read_state(root, path)
         changed = apply_account_defaults(root, path, notes, state, identities)
-        for key, imgs in prepared.items():
-            record = state['posts'].get(key, {})
-            decisions = record.get('images', {})
-            sources = record.get('image_sources', {})
-            for image in imgs:
-                name = image['key']
-                source = sources.get(name)
-                # Legacy stored marks (including explicit resets) are human.
-                if source == 'manual' or (name in decisions and source not in {'model', 'download'}):
-                    continue
-                prediction = image['subject']
-                value = 'unqualified' if image['download_problem'] else image_suggestion(prediction)
-                desired_source = 'download' if image['download_problem'] else 'model'
-                if value is not None:
-                    if decisions.get(name) != value or source != desired_source:
-                        record = state['posts'].setdefault(key, {'images': {}})
-                        decisions = record.setdefault('images', {})
-                        sources = record.setdefault('image_sources', {})
-                        decisions[name], sources[name] = value, desired_source
-                        record['updated_at'] = datetime.now(timezone.utc).isoformat()
-                        changed = True
-                elif source in {'model', 'download'}:
-                    # A changed/missing image must not keep a stale auto-check.
-                    decisions.pop(name, None)
-                    sources.pop(name, None)
-                    changed = True
         if changed and persist:
             state['source_file'] = path.relative_to(root).as_posix()
             write_state(root, path, state)
@@ -233,7 +194,11 @@ def annotations(root, path, keys=None, *, persist=True, dataset=None):
         account_rejection = identity.get('reason') if identity.get('status') == 'excluded' else None
         if account_rejection:
             account = 'marketing'
-        decisions = record.get('images', {})
+        decisions = {name: value for name, value in record.get('images', {}).items()
+                     if record.get('image_sources', {}).get(name) != 'download'}
+        for image in imgs:
+            if image['decision_source'] == 'download':
+                image['decision_source'] = None
         automatic_decision, automatic_reason = review_outcome(account, imgs, decisions)
         from semantic_quality import saved_collection_rejection
         semantic_rejection = saved_jev_rejection(note) or saved_collection_rejection(note, comments.get(str(note.get('note_id') or note.get('aweme_id')), []))
@@ -246,12 +211,12 @@ def annotations(root, path, keys=None, *, persist=True, dataset=None):
         post_decision = record.get('post_decision') if record.get('post_decision_source') == 'manual' else None
         if post_decision not in {'qualified', 'unqualified'}:
             post_decision = None
-        identity_pending = identity.get('status') == 'review' and account is None
-        gated = semantic_rejection or account_rejection or identity_pending
+        gated = semantic_rejection or account_rejection
         decision = automatic_decision if gated else post_decision or automatic_decision
         reason = automatic_reason if gated else 'manual_' + post_decision if post_decision else automatic_reason
         entries[key] = {
             'decision': decision, 'decision_reason': reason, 'images': decisions,
+            'requires_images': False,
             'post_decision': post_decision, 'post_decision_source': 'manual' if post_decision else None,
             'decision_source': 'manual' if post_decision and not gated else 'automatic',
             'semantic_rejection_reason': semantic_rejection,
@@ -268,26 +233,16 @@ def annotations(root, path, keys=None, *, persist=True, dataset=None):
     return {'entries': entries, 'total': len(notes), 'completed': completed}
 
 
-@lru_cache(maxsize=4096)
-def _readable_image(path, modified, size):
-    from PIL import Image
-    try:
-        with Image.open(path) as image:
-            image.verify()
-        return True
-    except (OSError, ValueError, SyntaxError):
-        return False
-
 
 def image_download_problem(root, image):
-    """Physical download failure is independent of a model inference failure."""
-    from image_subject import local_image_path
+    """Only check file availability; never inspect or classify its contents."""
+    from api.services.data_browser import local_image_path
     path = local_image_path(root, image)
     if path is None:
         return 'not_downloaded'
     try:
         stat = path.stat()
-        return None if stat.st_size and _readable_image(str(path), stat.st_mtime_ns, stat.st_size) else 'download_failed'
+        return None if stat.st_size else 'download_failed'
     except OSError:
         return 'not_downloaded'
 
@@ -322,6 +277,9 @@ def update_annotation(root, path, key, kind, decision, image_key=None, partial=F
                 record['post_decision'] = decision
                 record['post_decision_source'] = 'manual'
         record['updated_at'] = now
+        history = state.setdefault('events', [])
+        history.append({'at': now, 'post_key': key, 'kind': kind, 'decision': decision})
+        state['events'] = history[-5000:]
         state['source_file'] = path.relative_to(root).as_posix()
         write_state(root, path, state)
     if partial:

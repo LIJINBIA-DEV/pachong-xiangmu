@@ -115,7 +115,8 @@ class WeiboCrawler(AbstractCrawler):
             await asyncio.sleep(2)
 
             container_mode = os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1'
-            if container_mode:
+            web_qr = os.environ.get('MEDIACRAWLER_WEB_QR_LOGIN') == '1' and config.LOGIN_TYPE == 'qrcode'
+            if container_mode or web_qr:
                 # Refresh explicitly supplied credentials even when a prior
                 # browser profile is still logged in.
                 await self.browser_context.clear_cookies()
@@ -130,7 +131,7 @@ class WeiboCrawler(AbstractCrawler):
 
             # Create a client to interact with the xiaohongshu website.
             self.wb_client = await self.create_weibo_client(httpx_proxy_format)
-            if container_mode:
+            if container_mode or web_qr:
                 if not await self.wb_client.pong():
                     raise LoginRequired()
             elif not await self.wb_client.pong():
@@ -156,6 +157,7 @@ class WeiboCrawler(AbstractCrawler):
                 if os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1' and not await self.wb_client.pong():
                     raise LoginRequired()
 
+            utils.logger.info('[CrawlerStage] collecting')
             crawler_type_var.set(config.CRAWLER_TYPE)
             if config.CRAWLER_TYPE == "search":
                 # Search for video and retrieve their comment information.
@@ -182,6 +184,8 @@ class WeiboCrawler(AbstractCrawler):
         from collection_tasks import SearchProgress
         from tools.user_hash import anonymize_user_id
         progress_store = SearchProgress()
+        from publication_time import PublicationWindow
+        publication_window = PublicationWindow.from_environment()
         search_setting = os.environ.get('MEDIACRAWLER_WEIBO_SEARCH_TYPE', config.WEIBO_SEARCH_TYPE)
 
         # Set the search type based on the configuration for weibo
@@ -197,6 +201,10 @@ class WeiboCrawler(AbstractCrawler):
             utils.logger.error(f"[WeiboCrawler.search] Invalid WEIBO_SEARCH_TYPE: {config.WEIBO_SEARCH_TYPE}")
             return
 
+        if publication_window.active:
+            search_type = SearchType.REAL_TIME
+            utils.logger.info('[PublicationTime] 按最新顺序搜索；只保存指定发布时间范围内的帖子，时间缺失的帖子跳过。')
+
         for keyword in config.KEYWORDS.split(","):
             source_keyword_var.set(keyword)
             utils.logger.info(f"[WeiboCrawler.search] Current search keyword: {keyword}")
@@ -205,9 +213,12 @@ class WeiboCrawler(AbstractCrawler):
             seen_note_ids: set[str] = progress_store.seen(keyword)
             duplicate_pages = 0
             target_count = progress_store.target(keyword, config.CRAWLER_MAX_NOTES_COUNT)
+            from semantic_filter import COMMENT_SAMPLE_LIMIT
+            self._semantic_comments_remaining = target_count * COMMENT_SAMPLE_LIMIT
             pages_checked = 0
+            old_pages = 0
             stop_reason = 'target_reached'
-            diagnostics = {'pages_checked': 0, 'blocked_accounts': 0, 'evaluated': 0, 'not_retained': 0}
+            diagnostics = {'pages_checked': 0, 'blocked_accounts': 0, 'evaluated': 0, 'not_retained': 0, 'outside_time_range': 0, 'unknown_publish_time': 0}
             semantic_mode = config.SAVE_DATA_OPTION == "excel" and os.environ.get("MEDIACRAWLER_SEMANTIC_FILTER") == "1"
             if semantic_mode:
                 from store.excel_store_base import ExcelStoreBase
@@ -246,6 +257,11 @@ class WeiboCrawler(AbstractCrawler):
                     stop_reason = 'search_exhausted'
                     utils.logger.info(f"[WeiboCrawler.search] {keyword}: no posts on page {page}; search exhausted")
                     break
+                old_pages = old_pages + 1 if publication_window.older_page([(item.get('mblog') or {}).get('created_at') for item in note_list]) else 0
+                if old_pages >= 3:
+                    stop_reason = 'time_range_exhausted'
+                    utils.logger.info('[PublicationTime] 连续三页均早于开始时间，结束当前搜索。')
+                    break
                 candidates: List[Dict] = []
                 page_ids = set()
                 for note_item in note_list:
@@ -253,6 +269,13 @@ class WeiboCrawler(AbstractCrawler):
                     note_id = str((mblog or {}).get("id") or "")
                     if note_id and note_id not in seen_note_ids and note_id not in page_ids:
                         page_ids.add(note_id)
+                        time_reason = publication_window.exclusion(mblog.get('created_at'))
+                        if time_reason:
+                            diagnostics[time_reason] += 1
+                            seen_note_ids.add(note_id)
+                            progress_store.record(keyword, page, [note_id])
+                            utils.logger.info(f'[PublicationTime] {note_id}: skipped ({time_reason})')
+                            continue
                         account_reason = weibo_store.account_filter_reason(mblog.get('user'))
                         if account_reason:
                             diagnostics['blocked_accounts'] += 1
@@ -275,7 +298,7 @@ class WeiboCrawler(AbstractCrawler):
                         # New posts excluded by account policy are not duplicate
                         # search pages. Continue searching for eligible authors.
                         duplicate_pages = 0
-                        utils.logger.info(f"[AccountFilter] {keyword}: page {page} authors excluded; continuing search")
+                        utils.logger.info(f"[AccountFilter] {keyword}: page {page} has no eligible posts; continuing search")
                         page += 1
                         progress_store.record(keyword, page)
                         await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
@@ -322,13 +345,7 @@ class WeiboCrawler(AbstractCrawler):
                                 body_stop = True
                             else:
                                 body_stop = await ExcelStoreBase.review_semantic_note("weibo", mblog["id"])
-                            capture_retained = (
-                                config.ENABLE_GET_COMMENTS and config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES > 0
-                                and ExcelStoreBase.semantic_note_retained("weibo", mblog["id"], keyword)
-                                and not ExcelStoreBase.semantic_comments_collected("weibo", mblog["id"], keyword,
-                                    config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES)
-                            )
-                            if not body_stop or capture_retained:
+                            if not body_stop:
                                 await self.batch_get_notes_comments([mblog["id"]])
                             if ExcelStoreBase.semantic_note_retained("weibo", mblog["id"], keyword):
                                 retained_count += 1
@@ -465,14 +482,24 @@ class WeiboCrawler(AbstractCrawler):
             comment_stop_reason = None
             semantic_mode = config.SAVE_DATA_OPTION == "excel" and os.environ.get("MEDIACRAWLER_SEMANTIC_FILTER") == "1"
             options = {}
+            limit = max(0, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES)
+            sample_count = 0
+            save_comments = weibo_store.batch_update_weibo_note_comments
             if semantic_mode:
                 from store.excel_store_base import ExcelStoreBase
+                from semantic_filter import COMMENT_SAMPLE_LIMIT
+                remaining = getattr(self, '_semantic_comments_remaining', COMMENT_SAMPLE_LIMIT)
+                limit = min(limit, COMMENT_SAMPLE_LIMIT, remaining)
+                self._semantic_comments_remaining = remaining - limit
+                utils.logger.info(f'[SemanticComments] {note_id}: 正文判断不确定，最多补采 {limit} 条一级评论，不采回复')
+
+                async def save_comments(_note_id, comments):
+                    nonlocal sample_count
+                    sample_count += len(comments)
+                    await weibo_store.batch_update_weibo_note_comments(_note_id, comments)
 
                 async def review_page(_note_id, _comments):
-                    reason = await ExcelStoreBase.review_semantic_note("weibo", _note_id)
-                    # Continue saving approved posts' comments up to the configured limit,
-                    # without additional model calls or changing their semantic decision.
-                    return None if ExcelStoreBase.semantic_note_retained('weibo', _note_id) else reason
+                    return await ExcelStoreBase.review_semantic_note("weibo", _note_id)
 
                 async def record_completion(complete, reason):
                     nonlocal comments_available, comment_stop_reason
@@ -481,21 +508,21 @@ class WeiboCrawler(AbstractCrawler):
                 options = {
                     "page_callback": review_page, "completion_callback": record_completion,
                     # Also bound empty pages with changing cursors.
-                    "max_pages": max(1, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES),
+                    "max_pages": 1,
                 }
             try:
                 utils.logger.info(f"[WeiboCrawler.get_note_comments] begin get note_id: {note_id} comments ...")
 
                 # Sleep before fetching comments
-                if not semantic_mode or config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES > 0:
+                if not semantic_mode or limit > 0:
                     await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
                 utils.logger.info(f"[WeiboCrawler.get_note_comments] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds before fetching comments for note {note_id}")
 
                 await self.wb_client.get_note_all_comments(
                     note_id=note_id,
                     crawl_interval=config.CRAWLER_MAX_SLEEP_SEC,  # Use fixed interval instead of random
-                    callback=weibo_store.batch_update_weibo_note_comments,
-                    max_count=max(0, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES),
+                    callback=save_comments,
+                    max_count=limit,
                     include_sub_comments=not semantic_mode,
                     **options,
                 )
@@ -514,6 +541,8 @@ class WeiboCrawler(AbstractCrawler):
                 comment_stop_reason = 'comments_fetch_failed'
                 self._record_comment_failure(note_id, e)
             finally:
+                if semantic_mode:
+                    self._semantic_comments_remaining += limit - sample_count
                 if config.SAVE_DATA_OPTION == "excel":
                     from store.excel_store_base import ExcelStoreBase
                     await ExcelStoreBase.finalize_semantic_note(
@@ -539,9 +568,6 @@ class WeiboCrawler(AbstractCrawler):
             return
         try:
             items = weibo_media.build_media_items(mblog)
-            if os.environ.get('MEDIACRAWLER_IMAGES_ONLY') == '1':
-                from media_downloader import MediaType
-                items = [item for item in items if item.media_type == MediaType.IMAGE]
             if items:
                 await self._get_media_downloader().download_all(items)
         except Exception as exc:

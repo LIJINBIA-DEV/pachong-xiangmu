@@ -134,7 +134,7 @@ def export_review(root, path, *, snapshot=None):
     image_count = 0
     for index, note in enumerate(retained, 1):
         entry = review['entries'][note_key(note)]
-        image_count += sum(entry['images'].get(img['key']) == 'qualified' and not image_download_problem(root, img) for img in entry['review_images'])
+        image_count += sum(not image_download_problem(root, img) for img in entry['review_images'])
         nid = text(note.get('note_id') or note.get('aweme_id'))
         metadata = metadata_view(note, metadata_platform(note, path))
         sheet.append([index, _platform(note, path), web_url(note.get('note_url') or note.get('url')) or '未采集原帖链接',

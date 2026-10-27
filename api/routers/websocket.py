@@ -98,15 +98,9 @@ async def websocket_logs(websocket: WebSocket):
         await manager.connect(websocket)
         print(f"[WS] Connected, active connections: {len(manager.active_connections)}")
 
-        # Send existing logs
-        for log in crawler_manager.logs:
-            try:
-                await websocket.send_json(log.model_dump())
-            except Exception as e:
-                print(f"[WS] Error sending existing log: {e}")
-                break
-
-        print(f"[WS] Sent {len(crawler_manager.logs)} existing logs, entering main loop")
+        # One bounded snapshot prevents hundreds of renders on reconnect.
+        await websocket.send_json({'type': 'log_snapshot', 'session_id': crawler_manager.log_session_id,
+                                   'logs': [log.model_dump() for log in crawler_manager.logs[-50:]]})
 
         while True:
             # Keep connection alive, receive heartbeat or any message

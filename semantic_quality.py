@@ -3,22 +3,15 @@
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 import html
-import ast
-import json
 import math
-from pathlib import PurePath
 import re
 import unicodedata
-from urllib.parse import urlsplit
 
-from semantic_rules import OBJECT_TYPES, target_scope
 
 
 def explicit_jev_rejection(choice=None, object_type=None, *, original_choice=None,
                            original_object_type=None, verification_choice=None, reason=None):
     """A definite negative cannot be upgraded by candidate/review policy."""
-    if object_type in {'pet', OBJECT_TYPES['pet']} or original_object_type in {'pet', OBJECT_TYPES['pet']} or reason == 'pet_not_allowed':
-        return 'pet_not_allowed'
     if choice == 'reject' or original_choice == 'reject':
         return 'semantic_reject'
     if verification_choice == 'contradicted':
@@ -30,6 +23,8 @@ def explicit_jev_rejection(choice=None, object_type=None, *, original_choice=Non
 
 def saved_jev_rejection(note):
     """Apply the same gate to old candidate exports without rewriting them."""
+    if note.get('semantic_rule') not in {'evaluation', 'topic'}:
+        return None  # Legacy spatial/image rejections stay in history, without blocking human review.
     return explicit_jev_rejection(
         object_type=note.get('semantic_object_type'),
         original_choice=note.get('jev_original_choice'),
@@ -39,8 +34,33 @@ def saved_jev_rejection(note):
     )
 
 
+def is_general_evaluation(note):
+    return note.get('semantic_rule') == 'evaluation'
+
+
+def evaluation_problem(decision, records, threshold):
+    score = decision.confidence
+    if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not threshold <= score <= 1:
+        return 'low_or_missing_confidence'
+    by_key = {record.key: record for record in records}
+    evaluation, target = by_key.get(decision.evidence_id), by_key.get(decision.target_evidence_id)
+    if not evaluation or not target or not evaluation.text.strip() or not target.text.strip():
+        return 'missing_evidence'
+    return None
+
+
 def keyword_pair_present(note, comments=(), pair=None):
     """Use actual saved text, never the search label or synthesized evidence."""
+    if is_general_evaluation(note):
+        fields = [str(note.get(name) or '') for name in ('title', 'desc', 'content')]
+        fields.extend(str(comment.get('content') or '') for comment in comments)
+        evidence = (note.get('evaluation_evidence'), note.get('evaluation_target_evidence'))
+        return all(isinstance(value, str) and bool(value.strip()) and any(value in field for field in fields) for value in evidence)
+    if note.get('semantic_rule') == 'topic':
+        evidence = note.get('topic_evidence')
+        fields = [str(note.get(name) or '') for name in ('title', 'desc', 'content')]
+        fields.extend(str(comment.get('content') or '') for comment in comments)
+        return isinstance(evidence, str) and bool(evidence.strip()) and any(evidence in value for value in fields)
     if pair is None:
         words = str(note.get('source_keyword') or '').strip().split(maxsplit=1)
         pair = tuple(words) if len(words) == 2 else None
@@ -53,7 +73,7 @@ def keyword_pair_present(note, comments=(), pair=None):
 
 def saved_collection_rejection(note, comments=()):
     """Enforce collection eligibility independently of human image/account marks."""
-    if note.get('semantic_result') not in {'matched', 'review', 'pending', 'excluded', 'duplicate'}:
+    if note.get('semantic_rule') not in {'evaluation', 'topic'} or note.get('semantic_result') not in {'matched', 'review', 'pending', 'excluded', 'duplicate'}:
         return None
     if not keyword_pair_present(note, comments):
         return 'keyword_miss'
@@ -84,7 +104,7 @@ def evidence_records(fields: list[tuple[str, str]], max_fragment: int = 900, *, 
         # Offer contiguous paragraph evidence alongside sentence evidence. It
         # carries the location-to-object bridge without synthesizing any text
         # or joining comments, titles, bodies, or different paragraphs.
-        if context_pair and target_scope(context_pair[1]) in {'place', 'contextual_place'}:
+        if context_pair:
             for paragraph in re.finditer(r'[^\n]+', value):
                 text = paragraph.group()
                 if len(text) > max_fragment or not all(word in text for word in context_pair):
@@ -96,99 +116,19 @@ def evidence_records(fields: list[tuple[str, str]], max_fragment: int = 900, *, 
 
 
 def scene_animal_ambiguity(text: str) -> bool:
-    """A rescue-to-review signal, never a rule that automatically admits a post."""
-    animals = r"猫|兔|鸭|熊|狗|鹿|🐱|🐈|🐰|🐇|🦆|🐻|🐶|🐕|🦌"
-    scene = r"雕塑|雕像|草雕|绿雕|花坛|装置|墙绘|涂鸦|玩偶|造型|布景"
-    return bool(
-        re.search(rf"(?:{animals})[\s\S]{{0,80}}(?:{scene})|(?:{scene})[\s\S]{{0,80}}(?:{animals})", text)
-        or re.search(rf"(?:{animals}).{{0,12}}(?:留在|亮相).{{0,20}}(?:公园|广场|街区)", text)
-    )
+    return False  # Compatibility for old offline tools; no object-category policy remains.
 
 
 def scene_wildlife_ambiguity(text: str, target: str) -> bool:
-    return target_scope(target) in {'place', 'contextual_place'} and target in text and bool(
-        re.search(r'野生|野鸟|水鸟|候鸟|松鼠|园区饲养|动物区|动物园|动物乐园|池塘.{0,12}(?:鸭|天鹅)', text)
-    )
+    return False
 
 
 def image_requirement_problem(note: dict) -> str | None:
-    """Check saved picture metadata, not visual quality or download success."""
-    known = False
-    for key in ('image_names', 'image_list', 'images'):
-        if key not in note:
-            continue
-        known = True
-        value = note[key]
-        if isinstance(value, str):
-            if value.lstrip().startswith('['):
-                try:
-                    value = json.loads(value)
-                except ValueError:
-                    try:
-                        value = ast.literal_eval(value)
-                    except (ValueError, SyntaxError):
-                        value = []
-            else:
-                value = value.split(',')
-        if not isinstance(value, (list, tuple)):
-            continue
-        for item in value:
-            if isinstance(item, dict):
-                item = item.get('url') or item.get('url_default') or ''
-            if not isinstance(item, str) or not item.strip():
-                continue
-            item = item.strip()
-            if key == 'image_names':
-                if PurePath(item).suffix.lower() in {'.jpg', '.jpeg', '.png', '.gif', '.webp'}:
-                    return None
-            else:
-                try:
-                    url = urlsplit(item)
-                except ValueError:
-                    continue
-                if url.scheme in {'http', 'https'} and url.netloc and PurePath(url.path).suffix.lower() not in {'.mp4', '.mov', '.flv', '.m4s', '.mp3'}:
-                    return None
-    return 'no_images' if known else 'image_information_unavailable'
+    return None  # Optional media can never exclude a post.
 
 
 def keep_problem(pair, decision, records: list[Evidence], threshold: float) -> str | None:
-    confidence = decision.confidence
-    if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not math.isfinite(confidence) or not threshold <= confidence <= 1:
-        return "low_or_missing_confidence"
-    if decision.object_type not in {"place", "building", "facility", "landscape", "decoration", "wild_animal", "park_animal", "scene_animal"}:
-        return "object_not_allowed"
-    if decision.object_type in {'wild_animal', 'park_animal', 'scene_animal'} and target_scope(pair[1]) not in {'place', 'contextual_place'}:
-        return 'animal_outside_place_scope'
-    allowed = {"target_itself", "scene_component"} if target_scope(pair[1]) in {"place", "contextual_place"} else {"target_itself", "element_component"}
-    if decision.target_relation not in allowed:
-        return "target_relation_conflict"
-    by_key = {record.key: record for record in records}
-    evaluation = by_key.get(decision.evidence_id)
-    location = by_key.get(decision.target_evidence_id)
-    if not evaluation or not location:
-        return "missing_evidence"
-    if pair[0] not in evaluation.text:
-        return "evaluation_without_keyword"
-    if pair[1] not in location.text:
-        return "location_without_keyword"
-    if re.search(rf'(?:并不|一点也不|完全不|毫不|不怎么|不太|不可|不).{{0,3}}{re.escape(pair[0])}', evaluation.text):
-        return 'negative_evaluation'
-    if decision.object_type == 'scene_animal':
-        if re.search(r'我家|自家|自己养|宠物|遛猫|牵.{0,8}猫|带.{0,8}(?:小猫|猫咪)', evaluation.text + '\n' + location.text):
-            return 'pet_not_allowed'
-    if decision.object_type in {'wild_animal', 'park_animal'}:
-        identity_text = evaluation.text + '\n' + location.text
-        if re.search(r'流浪(?:猫|狗|犬|动物)', evaluation.text):
-            return 'animal_identity_unconfirmed'
-        if re.search(r'(?:我家|自家|自己养|宠物|遛狗|牵.{0,8}(?:狗|犬)|带.{0,8}(?:小狗|狗狗|宠物))', evaluation.text):
-            return 'pet_not_allowed'
-        if re.search(r'猫|狗|犬', evaluation.text) and not re.search(r'野生|园区.{0,12}(?:饲养|管理)|动物区|保护区', identity_text):
-            return 'animal_identity_unconfirmed'
-    # This invalidates the selected evidence, not an entire post that might
-    # contain another independent and valid scene evaluation.
-    if re.search(rf"(?:名字|名称|英文名|店名|地名).{{0,20}}{re.escape(pair[0])}|{re.escape(pair[0])}.{{0,5}}(?:的)?(?:名字|名称|英文名|店名|地名)", evaluation.text):
-        return "name_only_evidence"
-    return None
+    return evaluation_problem(decision, records, threshold)
 
 
 def normalize_text(value: str) -> str:

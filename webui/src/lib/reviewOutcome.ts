@@ -6,16 +6,11 @@ export function automaticReviewOutcome(entry: ReviewEntry): Pick<ReviewEntry, 'd
   if (entry.semantic_rejection_reason) return { decision: 'unqualified', decision_reason: entry.semantic_rejection_reason }
   if (entry.account_rejection_reason) return { decision: 'unqualified', decision_reason: entry.account_rejection_reason }
   if (entry.account === 'marketing') return { decision: 'unqualified', decision_reason: 'marketing' }
-  if (!entry.review_images.length) return { decision: 'unqualified', decision_reason: 'no_images' }
-  const values = entry.review_images.map((image) => entry.images[image.key])
-  if (values.every((value) => value === 'unqualified')) return { decision: 'unqualified', decision_reason: 'all_images_rejected' }
-  if (entry.account !== 'non_marketing') return { decision: null, decision_reason: 'account_pending' }
-  if (values.includes('qualified')) return { decision: 'qualified', decision_reason: 'retained' }
-  return { decision: null, decision_reason: 'images_pending' }
+  return { decision: null, decision_reason: 'text_review_pending' }
 }
 
 export function reviewOutcome(entry: ReviewEntry): Pick<ReviewEntry, 'decision' | 'decision_reason'> {
-  if (entry.semantic_rejection_reason || entry.account_rejection_reason || (entry.account_identity_status === 'review' && entry.account === null)) return automaticReviewOutcome(entry)
+  if (entry.semantic_rejection_reason || entry.account_rejection_reason) return automaticReviewOutcome(entry)
   // Preserve explicit human corrections, without reviving obsolete post labels.
   if (entry.post_decision_source === 'manual' && (entry.post_decision === 'qualified' || entry.post_decision === 'unqualified')) {
     return { decision: entry.post_decision, decision_reason: entry.post_decision === 'qualified' ? 'manual_qualified' : 'manual_unqualified' }

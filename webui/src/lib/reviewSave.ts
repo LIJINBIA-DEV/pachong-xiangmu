@@ -5,7 +5,7 @@ import type { ReviewChange } from './reviewOutcome'
 
 export type SavedReviewChange = ReviewChange & { file: string }
 
-export function reviewSaveOptions(queryClient: QueryClient, persist: (change: SavedReviewChange) => Promise<ManualReviewResponse>):
+export function reviewSaveOptions(queryClient: QueryClient, persist: (change: SavedReviewChange) => Promise<ManualReviewResponse>, onApproved?: (change: SavedReviewChange) => void):
   MutationObserverOptions<ManualReviewResponse, Error, SavedReviewChange, { previous?: ManualReviewResponse }> {
   return {
     mutationFn: persist,
@@ -25,7 +25,10 @@ export function reviewSaveOptions(queryClient: QueryClient, persist: (change: Sa
       const merged = mergeReviewResponse(queryClient.getQueryData<ManualReviewResponse>(queryKey), data)
       if (merged) queryClient.setQueryData(queryKey, merged)
       else void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: ['collectionTasks'] })
+      void queryClient.invalidateQueries({ queryKey: ['dataBrowse'] })
       void queryClient.invalidateQueries({ queryKey: ['supplement', change.file] })
+      if (change.kind === 'post' && change.decision === 'qualified' && merged?.entries[change.key]?.decision === 'qualified') onApproved?.(change)
     },
   }
 }

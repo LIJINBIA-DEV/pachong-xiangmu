@@ -9,6 +9,7 @@ from api.schemas import CrawlerStartRequest
 from api.services.data_browser import load_review_dataset
 from api.services.manual_review import annotations, note_key
 from media_platform.weibo.session import read_session
+from api.services.semantic_settings import runtime_key
 
 _start_lock = asyncio.Lock()
 
@@ -42,7 +43,7 @@ def plan(root, path, manager):
     config = task['config'] if task else None
     cache = manager.task_credentials.get(task['id'], {}) if task else {}
     needs_key = bool(config and config.get('semantic_filter') and config.get('semantic_model') == 'jev-1.13.0'
-                     and not cache.get('semantic_api_key') and not os.environ.get('TYPESAFE_API_KEY'))
+                     and not cache.get('semantic_api_key') and not runtime_key(root))
     qr_mode = bool(config and config.get('login_type') == 'qrcode' and not cache.get('cookies'))
     qr_saved = bool(read_session(getattr(manager, '_project_root', Path(__file__).resolve().parents[2])))
     return {'task_id': task['id'] if task else None, 'anchor': task.get('anchor') if task else path.relative_to(root).as_posix(),
@@ -71,7 +72,7 @@ async def start_supplement(root, path, manager, target=None, config=None, api_ke
             if target is None or config is None:
                 raise ValueError('supplement_setup_required')
             keywords = [group['keyword'] for group in status['groups']]
-            pairs = [tuple(keyword.split(maxsplit=1)) for keyword in keywords]
+            pairs = [(keyword, '') if config.semantic_rule == 'topic' else tuple(keyword.split(maxsplit=1)) for keyword in keywords]
             config = config.model_copy(update={'platform': config.platform.__class__('wb'),
                 'crawler_type': config.crawler_type.__class__('search'), 'save_option': config.save_option.__class__('excel'),
                 'keywords': ','.join(keywords), 'keyword_pairs': [pair for pair in pairs if len(pair) == 2],
@@ -97,8 +98,8 @@ async def start_supplement(root, path, manager, target=None, config=None, api_ke
         cached_key = manager.task_credentials.get(task['id'], {}).get('semantic_api_key')
         supplied = api_key.get_secret_value() if api_key else None
         from pydantic import SecretStr
-        if supplied or cached_key:
-            config = config.model_copy(update={'semantic_api_key': SecretStr(supplied or cached_key)})
+        if supplied or runtime_key(root) or cached_key:
+            config = config.model_copy(update={'semantic_api_key': SecretStr(supplied or runtime_key(root) or cached_key)})
         # Check again using the newly attached task and the latest shared labels.
         status = plan(root, path, manager)
         quotas = {group['keyword']: group['shortfall'] for group in status['groups'] if group['shortfall']}
@@ -110,8 +111,9 @@ async def start_supplement(root, path, manager, target=None, config=None, api_ke
                    if entry['account'] == 'marketing' and entry['account_key'].startswith('creator:')]
         seed = [str(note.get('note_id') or '') for note in notes]
         run = prepare_run(root, task, quotas, seed, blocked, supplement=True)
+        scene_pairs = {' '.join(part for part in pair if part).strip(): tuple(pair) for pair in config.keyword_pairs}
         config = config.model_copy(update={'keywords': ','.join(quotas),
-            'keyword_pairs': [tuple(keyword.split(maxsplit=1)) for keyword in quotas if len(keyword.split(maxsplit=1)) == 2],
+            'keyword_pairs': [(keyword, '') if config.semantic_rule == 'topic' else scene_pairs.get(keyword, tuple(keyword.split(maxsplit=1))) for keyword in quotas if config.semantic_rule == 'topic' or len(keyword.split(maxsplit=1)) == 2],
             'max_notes_count': max(quotas.values())})
         try:
             if not await manager.start(config, collection_run=run):

@@ -18,7 +18,8 @@
 
 from enum import Enum
 from typing import Optional, Literal
-from pydantic import BaseModel, Field, SecretStr
+from datetime import date
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 MAX_API_LIMIT_COUNT = 10000
@@ -73,22 +74,35 @@ class CrawlerStartRequest(BaseModel):
     enable_comments: bool = True
     enable_sub_comments: bool = False
     enable_media: bool = False
-    image_subject_recognition: bool = True
+    image_subject_recognition: bool = False  # Accept historical task configs; recognition is disabled.
     save_option: SaveDataOptionEnum = SaveDataOptionEnum.JSONL
     cookies: str = ""
     headless: bool = False
     max_notes_count: Optional[int] = Field(default=None, ge=1, le=MAX_API_LIMIT_COUNT)
     max_comments_count: Optional[int] = Field(default=None, ge=1, le=MAX_API_LIMIT_COUNT)
     semantic_filter: bool = False
+    semantic_rule: Literal['scene', 'topic'] = 'scene'
     semantic_model: str = "jev-1.13.0"
     semantic_api_key: Optional[SecretStr] = None
     keyword_pairs: list[tuple[str, str]] = Field(default_factory=list)
     weibo_search_type: Literal['default', 'real_time', 'popular', 'video'] = 'default'
+    publish_time_range: Literal['all', 'week', 'day', 'month', 'custom'] = 'all'
+    publish_start_date: Optional[date] = None
+    publish_end_date: Optional[date] = None
+
+    @model_validator(mode='after')
+    def validate_publication_window(self):
+        from publication_time import PublicationWindow
+        PublicationWindow.resolve(self.publish_time_range, self.publish_start_date, self.publish_end_date)
+        if self.publish_time_range != 'all' and (self.crawler_type.value != 'search' or self.platform.value not in {'xhs', 'wb'}):
+            raise ValueError('发布时间范围目前适用于小红书和微博的搜索采集。')
+        return self
 
 
 class CrawlerStatusResponse(BaseModel):
     """Crawler status response"""
     status: Literal["idle", "running", "stopping", "error"]
+    stage: Literal["idle", "waiting_login", "starting", "running"] = "idle"
     platform: Optional[str] = None
     crawler_type: Optional[str] = None
     started_at: Optional[str] = None
@@ -101,6 +115,7 @@ class LogEntry(BaseModel):
     timestamp: str
     level: Literal["info", "warning", "error", "success", "debug"]
     message: str
+    session_id: Optional[str] = None
 
 
 class DataFileInfo(BaseModel):

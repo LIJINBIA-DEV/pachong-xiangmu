@@ -1,18 +1,18 @@
 {
   "reviewExport": {
-    "button": "导出 Excel＋合格图片",
+    "button": "导出 Excel＋配图",
     "running": "正在准备结果包…",
-    "hint": "下载 ZIP：保留帖的 Excel、合格原图、图片对应表和缺失说明。",
+    "hint": "下载 ZIP：已人工保留帖的 Excel、已下载配图、图片对应表和缺失说明；纯文字帖子也可导出。",
     "empty": "目前没有可导出的保留帖子。",
-    "failed": "结果包未生成，请确认采集和识别已停止后重试；最多保留 3 个结果包，可先移除旧包。",
+    "failed": "结果包未生成，请确认采集已停止后重试；最多保留 3 个结果包，可先移除旧包。",
     "missingMain": "原选择对应的采集主 Excel 已缺失，请恢复主文件或选择另一轮采集；语义文件仍保留在后台。",
     "statusFailed": "暂时无法读取导出状态或移除结果包，请重试。",
     "retryStatus": "重试读取状态",
-    "progress": "合格图片处理 {{done}} / {{total}} 张",
+    "progress": "配图处理 {{done}} / {{total}} 张",
     "cancel": "取消准备",
     "download": "下载 ZIP（有效期 1 小时）",
     "removePackage": "移除临时结果包",
-    "summary": "保留 {{retained}} 帖 · 已打包 {{images}} 张原图 · 待审核 {{pending}} 帖 · 合格图片缺失 {{missing}} 张 · 无合格图片 {{noImages}} 帖",
+    "summary": "保留 {{retained}} 帖 · 已打包 {{images}} 张原图 · 待审核 {{pending}} 帖 · 配图缺失 {{missing}} 张 · 无配图 {{noImages}} 帖",
     "partial": "部分结果或有缺图，详情见包内说明和图片对应表。",
     "status": {
       "queued": "等待准备",
@@ -85,7 +85,7 @@
     },
     "keyMissing": "请先填写并保存硅基流动 API Key。"
   },
-  "reviewTools": "补采与图片识别（展开查看）",
+  "reviewTools": "审核后补采（展开查看）",
   "reviewToolsReady": "审核完成，可补采",
   "postDetails": "帖子详细信息",
   "logs": {
@@ -103,14 +103,14 @@
     "collectionSummary": "最近一轮：{{groups}} 个关键词组未采够，采集缺口 {{missing}} 条。",
     "reviewSummary": "人工审核：已排除 {{excluded}} 条，尚无结论 {{pending}} 条；距离最终保留目标还缺 {{missing}} 条。",
     "scope": "采集缺口与人工审核后的缺口分别统计。日志随采集保存，重启后仍可查看。",
-    "counts": "已采 {{retained}} / 目标 {{target}} · 缺 {{missing}} 条",
+    "counts": "本轮初筛保留 {{retained}} / 目标 {{target}} · 缺 {{missing}} 帖",
     "page": "停止／检查至第 {{count}} 页",
     "unknownPage": "未记录页码",
     "unknownTime": "旧记录未保存时间",
     "details": "查看诊断详情",
     "reasonCode": "停止原因代码",
     "noHistory": "这个文件未关联采集日志；后续通过配置页采集的任务会自动保存日志。",
-    "noMatches": "当前条件下没有缺数记录，可切换轮次或取消仅看未采够。",
+    "noMatches": "当前筛选条件下没有搜索记录，可切换轮次、清空搜索或取消仅看未采够。",
     "outdated": "日志接口尚未加载，请重启后端后点击重新扫描。",
     "loadFailed": "无法读取日志，请检查关联任务文件是否完整后重新扫描。",
     "evidence": {
@@ -128,7 +128,8 @@
       "searching": "本组仍在采集，数量尚未最终确定。",
       "interrupted": "本组采集中断，已保存进度；未记录正常结束原因。",
       "not_reached": "本轮结束时尚未处理到这一组，或未保存该组结束记录。",
-      "not_recorded": "尚未保存该关键词组的采集结果。"
+      "not_recorded": "尚未保存该关键词组的采集结果。",
+      "time_range_exhausted": "按最新顺序搜索，连续三页帖子均早于所选开始时间，已结束本组搜索。"
     },
     "fields": {
       "checked_page": "最后请求页码",
@@ -139,7 +140,9 @@
       "parsed_count": "最后一页解析帖子数",
       "blocked_accounts": "排除的账号帖子数",
       "evaluated": "已处理帖子数",
-      "not_retained": "文本筛选未保留数"
+      "not_retained": "文本筛选未保留数",
+      "outside_time_range": "时间范围外跳过",
+      "unknown_publish_time": "发布时间缺失跳过"
     },
     "accountTitle": "账号身份筛选日志",
     "accountCount": "{{count}} 条记录",
@@ -161,19 +164,21 @@
   "descriptions": {
     "config": "设置采集关键词、目标条数与筛选规则。",
     "console": "查看实时输出、采集进度和错误信息。",
-    "data": "管理采集文件，浏览帖子、命中评论和图片。",
+    "data": "按采集任务查看帖子，区分已保留与待复核；筛选记录可在任务详情中查看。",
     "review": "快速检查模型和帖子判断，程序预选结论，有问题再人工改判。",
-    "logs": "按采集轮次查看未采够的关键词组、停止位置和诊断依据。",
-    "dashboard": "当前任务的采集、初筛与图片识别统计。"
+    "logs": "查看任务运行概况、采集轮次、筛选诊断，以及人工审核和 AI 总结记录。",
+    "dashboard": "当前任务的采集、初筛与图片下载统计。"
   },
   "status": {
     "idle": "采集未运行",
-    "running": "正在采集",
+    "running": "正在运行",
     "stopping": "正在停止",
-    "error": "采集发生错误"
+    "error": "采集发生错误",
+    "waiting_login": "等待扫码登录",
+    "starting": "准备采集"
   },
-  "batch": "采集文件",
-  "chooseBatch": "选择采集文件",
+  "batch": "采集任务",
+  "chooseBatch": "选择采集任务",
   "reviewFilter": "人工审核状态",
   "filters": {
     "all": "全部帖子",
@@ -201,7 +206,7 @@
   "accountBatchScope": "同一文件内，该账号的帖子同步应用。",
   "accountPostScope": "此数据未保存账号标识，标记仅用于本帖，不按脱敏用户名合并。",
   "imageReview": "图片审核",
-  "imageHint": "自动判断：非营销号且至少一张图片合格即保留；营销号或图片全部不合格则排除。可在本帖结论中人工改判。",
+  "imageHint": "图片仅供预览，不影响帖子是否保留。请根据帖子内容审核。",
   "imageProgress": "已标记 {{completed}} / {{total}} 张",
   "image": "图片 {{count}}",
   "openImage": "查看图片 {{count}} 大图",
@@ -233,7 +238,7 @@
     "all_images_rejected": "所有图片均已标记为不合格。",
     "account_pending": "请先完成账号审核。",
     "images_pending": "请继续审核图片，至少一张合格即可保留。",
-    "retained": "账号审核通过，且至少一张图片合格。",
+    "retained": "至少一张图片已标记为合格。",
     "pet_not_allowed": "Jev 已明确识别为个人饲养或随行宠物，直接排除。",
     "semantic_reject": "Jev 已明确判定不通过，直接排除。",
     "evidence_contradicted": "Jev 已明确判定证据不支持所需关系，直接排除。",
@@ -243,7 +248,8 @@
     "account_blocklist_bot": "命中营销账号排除名单。",
     "account_blocklist_media": "命中媒体账号排除名单。",
     "account_blocklist_government": "命中政务账号排除名单。",
-    "account_identity_uncertain": "账号身份不确定，留给人工确认。"
+    "account_identity_uncertain": "账号身份不确定，留给人工确认。",
+    "text_review_pending": "请核对文字中的评价与对象关系，并确认本帖结论；图片不是保留条件。"
   },
   "supplement": {
     "qrLoginRequired": "扫码登录状态缺失或已过期，请先到配置页重新扫码，再继续补采。",
@@ -280,7 +286,8 @@
       "search_exhausted": "搜索结果已耗尽",
       "duplicate_pages": "连续多页没有新帖子",
       "page_budget": "达到本轮搜索预算（每组最多100页）",
-      "semantic_unavailable": "语义判断暂不可用，可恢复后重试"
+      "semantic_unavailable": "语义判断暂不可用，可恢复后重试",
+      "time_range_exhausted": "所选时间范围内的结果已搜索完毕"
     },
     "errors": {
       "collection_active": "已有采集正在运行，请完成或停止后再补采。",
@@ -295,8 +302,8 @@
   },
   "reviewBackendOutdated": "后端仍是旧版本，暂不支持本帖结论。请双击项目中的“重启后端.cmd”，完成后回到此页面点击“重试”；之前保存的标记仍在。",
   "postDecision": "本帖结论",
-  "postQualified": "本帖合格",
-  "postUnqualified": "本帖不合格",
+  "postQualified": "审核通过",
+  "postUnqualified": "审核不通过",
   "manualPostOverride": "已人工改判，以按钮选中结果为准",
   "resetPostDecision": "恢复程序自动结论",
   "previous": "上一帖",
@@ -325,6 +332,16 @@
     "unsaved": "设置尚未保存。",
     "cloudHint": "图片通过后端发送到硅基流动。沿用当前审核规则，不确定或识别失败时留给人工；人工标记优先。密钥加密保存在本机，不写入浏览器存储。",
     "localHint": "在本机识别，图片不发送到云端。",
-    "failed": "设置读取或保存失败，请重试。"
-  }
+    "failed": "设置读取或保存失败，请重试。",
+    "ready": "图片识别配置已就绪。"
+  },
+  "noImagesTextEvaluation": "本帖没有图片，可核对标题、正文和评论后，在“本帖结论”中选择采用或排除。无需补齐图片。",
+  "accountInfo": "账号信息",
+  "viewPostImages": "查看原帖图片",
+  "onlinePicture": "在线图片",
+  "localPicture": "本地图片",
+  "imageOnlineFailed": "在线图片暂时无法加载，可能已过期或受平台限制。可重试或打开原帖查看。",
+  "imageUrlMissing": "此记录未保存可用图片地址，可打开原帖查看。",
+  "retryImage": "重新加载图片",
+  "postReviewInstructions": "根据帖子内容进行审核。审核通过并保存后，自动切换到下一帖；最后一帖保持在当前页。"
 }

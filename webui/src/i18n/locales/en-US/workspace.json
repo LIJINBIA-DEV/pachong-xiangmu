@@ -2,7 +2,7 @@
   "reviewExport": {
     "button": "Export Excel + approved images",
     "running": "Preparing package…",
-    "hint": "ZIP with retained posts, approved originals, image mapping and missing-file notes.",
+    "hint": "ZIP with retained posts, downloaded attachments, image mapping and missing-file notes.",
     "empty": "There are no retained posts to export.",
     "failed": "Package preparation failed. Stop collection/recognition and retry. Remove old packages if the three-package limit is reached.",
     "missingMain": "The selected semantic file has no main Excel. Restore it or select another collection.",
@@ -99,12 +99,12 @@
   "descriptions": {
     "config": "Set keywords, collection targets and screening rules.",
     "console": "Read live output, collection progress and errors.",
-    "data": "Manage files and browse posts, matching comments and images.",
+    "data": "Browse posts by collection task, separate retained posts from those needing review, and inspect screening records in task details.",
     "review": "Quickly check model and post decisions. Outcomes are preselected; correct them when needed.",
-    "logs": "Inspect collection shortfalls, stopping pages and diagnostic evidence by run.",
-    "dashboard": "Collection, screening and image statistics for the current task."
+    "logs": "Task overview, collection rounds, diagnostics, manual review and AI summary activity.",
+    "dashboard": "Collection, screening and image download statistics for the current task."
   },
-  "reviewTools": "Supplement and recognition tools",
+  "reviewTools": "Collect missing posts (expand)",
   "reviewToolsReady": "Review complete; supplement available",
   "postDetails": "Post details",
   "logs": {
@@ -147,7 +147,8 @@
       "searching": "Collection is in progress; counts are not final.",
       "interrupted": "Collection was interrupted. Progress was saved without a normal stopping reason.",
       "not_reached": "This group was not processed before the run ended, or its result was not saved.",
-      "not_recorded": "No result has been recorded for this group."
+      "not_recorded": "No result has been recorded for this group.",
+      "time_range_exhausted": "Three consecutive pages in latest order were entirely older than the selected start time; search stopped."
     },
     "fields": {
       "checked_page": "Last requested page",
@@ -158,7 +159,9 @@
       "parsed_count": "Last-page parsed posts",
       "blocked_accounts": "Posts excluded by account",
       "evaluated": "Posts processed",
-      "not_retained": "Not retained by text screening"
+      "not_retained": "Not retained by text screening",
+      "outside_time_range": "Outside time range",
+      "unknown_publish_time": "Unknown publication time"
     },
     "accountTitle": "Account identity log",
     "accountCount": "{{count}} entries",
@@ -168,12 +171,14 @@
   },
   "status": {
     "idle": "Not running",
-    "running": "Collecting",
+    "running": "Running",
     "stopping": "Stopping",
-    "error": "Collection error"
+    "error": "Collection error",
+    "waiting_login": "Waiting for login",
+    "starting": "Preparing collection"
   },
-  "batch": "Collection file",
-  "chooseBatch": "Choose a file",
+  "batch": "Collection task",
+  "chooseBatch": "Choose a task",
   "reviewFilter": "Human review status",
   "filters": {
     "all": "All posts",
@@ -233,7 +238,7 @@
     "all_images_rejected": "All images have been rejected.",
     "account_pending": "Review the account first.",
     "images_pending": "Continue reviewing images. One approved image is enough to retain the post.",
-    "retained": "Account accepted and at least one image qualified.",
+    "retained": "At least one image is marked qualified.",
     "pet_not_allowed": "Jev identified a personal or accompanying pet; excluded.",
     "semantic_reject": "Jev explicitly rejected this post; excluded.",
     "evidence_contradicted": "Jev explicitly found contradictory evidence; excluded.",
@@ -243,7 +248,8 @@
     "account_blocklist_bot": "Marketing account exclusion list matched.",
     "account_blocklist_media": "Media account exclusion list matched.",
     "account_blocklist_government": "Government account exclusion list matched.",
-    "account_identity_uncertain": "Uncertain account identity; manual review required."
+    "account_identity_uncertain": "Uncertain account identity; manual review required.",
+    "text_review_pending": "Check whether the evaluation describes the target, then confirm the post decision. Images are not a retention requirement."
   },
   "supplement": {
     "qrLoginRequired": "The saved session is missing or expired. Sign in on the configuration page before supplementing.",
@@ -280,7 +286,8 @@
       "search_exhausted": "Search exhausted",
       "duplicate_pages": "Repeated pages without new posts",
       "page_budget": "Search budget reached (100 pages per group)",
-      "semantic_unavailable": "Semantic service unavailable; retry after recovery"
+      "semantic_unavailable": "Semantic service unavailable; retry after recovery",
+      "time_range_exhausted": "Selected publication range exhausted"
     },
     "errors": {
       "cookies_required": "Enter a valid Weibo Cookie to continue.",
@@ -325,6 +332,16 @@
     "unsaved": "Settings have not been saved.",
     "cloudHint": "The backend sends images to SiliconFlow using the current policy. Uncertain or failed results require human review. Human decisions take priority. The key is encrypted locally and is not stored in the browser.",
     "localHint": "Images are processed locally and are not uploaded.",
-    "failed": "Could not load or save settings. Please retry."
-  }
+    "failed": "Could not load or save settings. Please retry.",
+    "ready": "Image recognition configuration is ready."
+  },
+  "noImagesTextEvaluation": "This post has no images. Review its title, body and comments, then accept or exclude the post using the post decision controls. Images are optional.",
+  "accountInfo": "Account information",
+  "viewPostImages": "View images in original post",
+  "onlinePicture": "Online image",
+  "localPicture": "Local image",
+  "imageOnlineFailed": "The online image may be expired or restricted by the platform. Retry or open the original post.",
+  "imageUrlMissing": "No usable image URL was saved. Open the original post to view it.",
+  "retryImage": "Reload image",
+  "postReviewInstructions": "Review the post content. After approval is saved, the next post opens automatically. The last post stays open."
 }

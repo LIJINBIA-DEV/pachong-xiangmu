@@ -81,8 +81,13 @@ class XiaoHongShuCrawler(AbstractCrawler):
             playwright_proxy_format, httpx_proxy_format = utils.format_proxy_info(ip_proxy_info)
 
         async with async_playwright() as playwright:
+            web_qr = config.LOGIN_TYPE == 'qrcode' and (os.environ.get('MEDIACRAWLER_WEB_QR_LOGIN') == '1' or os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1')
+            local_web_qr = web_qr and os.environ.get('MEDIACRAWLER_LOGIN_ENVIRONMENT') == 'local'
             # Choose launch mode based on configuration
-            if config.ENABLE_CDP_MODE:
+            if local_web_qr:
+                from media_platform.xhs.browser import launch_local_context
+                self.browser_context = await launch_local_context(playwright, os.getcwd())
+            elif config.ENABLE_CDP_MODE:
                 utils.logger.info("[XiaoHongShuCrawler] Launching browser using CDP mode")
                 self.browser_context = await self.launch_browser_with_cdp(
                     playwright,
@@ -103,8 +108,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 # stealth.min.js is a js script to prevent the website from detecting the crawler.
                 await self.browser_context.add_init_script(path="libs/stealth.min.js")
 
-            web_qr = os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1' and config.LOGIN_TYPE == 'qrcode'
-            if web_qr:
+            if web_qr and not local_web_qr:
                 from media_platform.xhs.session import restore_session
                 if not await restore_session(self.browser_context, os.getcwd()):
                     raise PlatformAccessError('请先在配置页完成小红书扫码登录。')
@@ -130,6 +134,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                     urls=self.cookie_urls,
                 )
 
+            utils.logger.info('[CrawlerStage] collecting')
             crawler_type_var.set(config.CRAWLER_TYPE)
             if config.CRAWLER_TYPE == "search":
                 # Search for notes and retrieve their comment information.
@@ -147,31 +152,55 @@ class XiaoHongShuCrawler(AbstractCrawler):
 
     async def search(self) -> None:
         """Search for notes and retrieve their comment information."""
-        from collection_tasks import review_progress
+        from collection_tasks import review_progress, SearchProgress
         review_progress("SEARCHING")
         utils.logger.info("[XiaoHongShuCrawler.search] Begin search Xiaohongshu keywords")
         start_page = config.START_PAGE
+        progress_store = SearchProgress()
+        from publication_time import PublicationWindow
+        publication_window = PublicationWindow.from_environment()
+        if publication_window.active:
+            utils.logger.info('[PublicationTime] 按最新顺序搜索；只保存指定发布时间范围内的帖子，时间缺失的帖子跳过。')
         for keyword in config.KEYWORDS.split(","):
             source_keyword_var.set(keyword)
             utils.logger.info(f"[XiaoHongShuCrawler.search] Current search keyword: {keyword}")
-            page = start_page
+            page = progress_store.page(keyword, start_page)
             retained_count = 0
-            target_count = config.CRAWLER_MAX_NOTES_COUNT
-            seen_search_ids: set[str] = set()
+            target_count = progress_store.target(keyword, config.CRAWLER_MAX_NOTES_COUNT)
+            from semantic_filter import COMMENT_SAMPLE_LIMIT
+            self._semantic_comments_remaining = target_count * COMMENT_SAMPLE_LIMIT
+            seen_search_ids: set[str] = progress_store.seen(keyword)
             stored_note_ids: set[str] = set()
             duplicate_pages = 0
+            pages_checked = 0
+            old_pages = 0
+            time_skipped = {'outside_time_range': 0, 'unknown_publish_time': 0}
+            checked_page = page
+            stop_reason = 'search_exhausted'
+
+            def record_progress(reason):
+                progress_store.record(keyword, page, stored_note_ids, result={
+                    'retained': retained_count, 'target': target_count, 'reason': reason,
+                    'diagnostics': {'pages_checked': pages_checked, 'checked_page': checked_page,
+                                    'evaluated': len(stored_note_ids), 'not_retained': len(stored_note_ids) - retained_count, **time_skipped},
+                })
+
+            record_progress('searching')
             semantic_mode = config.SAVE_DATA_OPTION == "excel" and os.environ.get("MEDIACRAWLER_SEMANTIC_FILTER") == "1"
             if semantic_mode:
                 from store.excel_store_base import ExcelStoreBase
             search_id = get_search_id()
             while retained_count < target_count:
                 try:
+                    checked_page = page
+                    pages_checked += 1
+                    record_progress('searching')
                     utils.logger.info(f"[XiaoHongShuCrawler.search] search Xiaohongshu keyword: {keyword}, page: {page}")
                     notes_res = await self.xhs_client.get_note_by_keyword(
                         keyword=keyword,
                         search_id=search_id,
                         page=page,
-                        sort=(SearchSortType(config.SORT_TYPE) if config.SORT_TYPE != "" else SearchSortType.GENERAL),
+                        sort=SearchSortType.LATEST if publication_window.active else (SearchSortType(config.SORT_TYPE) if config.SORT_TYPE != "" else SearchSortType.GENERAL),
                     )
                     utils.logger.info(f"[XiaoHongShuCrawler.search] Search notes response: {notes_res}")
                     if not notes_res:
@@ -192,12 +221,14 @@ class XiaoHongShuCrawler(AbstractCrawler):
                             f"({duplicate_pages}/{MAX_CONSECUTIVE_DUPLICATE_PAGES}); trying the next page"
                         )
                         if duplicate_pages >= MAX_CONSECUTIVE_DUPLICATE_PAGES:
+                            stop_reason = 'duplicate_pages'
                             utils.logger.info(f"[XiaoHongShuCrawler.search] {keyword}: stopped after repeated pages without new posts")
                             break
                         page += 1
                         await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
                         continue
                     duplicate_pages = 0
+                    page_times = []
                     offset = 0
                     while offset < len(search_items) and retained_count < target_count:
                         batch = search_items[offset:offset + target_count - retained_count]
@@ -213,6 +244,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
                             ) for post_item in batch
                         ]
                         note_details = await asyncio.gather(*task_list)
+                        page_times.extend((note or {}).get('time') for note in note_details)
                         note_ids: List[str] = []
                         xsec_tokens: List[str] = []
                         semantic_media: List[Dict] = []
@@ -221,6 +253,11 @@ class XiaoHongShuCrawler(AbstractCrawler):
                             if not note_id or note_id in stored_note_ids:
                                 continue
                             stored_note_ids.add(note_id)
+                            time_reason = publication_window.exclusion(note_detail.get('time'))
+                            if time_reason:
+                                time_skipped[time_reason] += 1
+                                utils.logger.info(f'[PublicationTime] {note_id}: skipped ({time_reason})')
+                                continue
                             await xhs_store.update_xhs_note(note_detail)
                             if semantic_mode:
                                 semantic_media.append(note_detail)
@@ -236,9 +273,15 @@ class XiaoHongShuCrawler(AbstractCrawler):
                                 if ExcelStoreBase.semantic_note_retained("xhs", note_detail["note_id"], keyword):
                                     retained_count += 1
                                     await self.download_media(note_detail)
+                            record_progress('searching')
                         utils.logger.info(
                             f"[XiaoHongShuCrawler.search] {keyword}: retained {retained_count}/{target_count}"
                         )
+                    old_pages = old_pages + 1 if publication_window.older_page(page_times) else 0
+                    if old_pages >= 3:
+                        stop_reason = 'time_range_exhausted'
+                        utils.logger.info('[PublicationTime] 连续三页均早于开始时间，结束当前搜索。')
+                        break
                     page += 1
                     if retained_count >= target_count:
                         break
@@ -246,8 +289,10 @@ class XiaoHongShuCrawler(AbstractCrawler):
                         break
                     await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
                 except DataFetchError:
+                    stop_reason = 'request_failed'
                     utils.logger.error("[XiaoHongShuCrawler.search] Get note detail error")
                     break
+            record_progress('target_reached' if retained_count >= target_count else stop_reason)
             utils.logger.info(
                 f"[XiaoHongShuCrawler.search] {keyword}: finished with {retained_count}/{target_count} retained posts"
             )
@@ -425,6 +470,9 @@ class XiaoHongShuCrawler(AbstractCrawler):
     async def get_comments(self, note_id: str, xsec_token: str, semaphore: asyncio.Semaphore):
         """Get note comments with keyword filtering and quantity limitation"""
         async with semaphore:
+            if config.SAVE_DATA_OPTION == 'excel' and os.environ.get('MEDIACRAWLER_SEMANTIC_FILTER') == '1':
+                await self._screen_with_comment_sample(note_id, xsec_token)
+                return
             comments_available = False
             try:
                 utils.logger.info(f"[XiaoHongShuCrawler.get_comments] Begin get note id comments {note_id}")
@@ -446,6 +494,44 @@ class XiaoHongShuCrawler(AbstractCrawler):
                 if config.SAVE_DATA_OPTION == "excel":
                     from store.excel_store_base import ExcelStoreBase
                     await ExcelStoreBase.finalize_semantic_note("xhs", note_id, comments_available)
+
+    async def _screen_with_comment_sample(self, note_id: str, xsec_token: str):
+        from semantic_filter import COMMENT_SAMPLE_LIMIT
+        from store.excel_store_base import ExcelStoreBase
+
+        body_stop = await ExcelStoreBase.review_semantic_note('xhs', note_id)
+        if body_stop:
+            utils.logger.info(f'[SemanticComments] {note_id}: 标题正文已完成判断（{body_stop}），不补采评论')
+            return
+        remaining = getattr(self, '_semantic_comments_remaining', COMMENT_SAMPLE_LIMIT)
+        limit = min(COMMENT_SAMPLE_LIMIT, max(0, config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES), remaining)
+        self._semantic_comments_remaining = remaining - limit
+        count = 0
+        available = False
+        reason = 'comment_budget_exhausted'
+        try:
+            if not limit:
+                utils.logger.info(f'[SemanticComments] {note_id}: 本轮评论补采预算已用完，使用已有文字完成判断')
+                return
+            utils.logger.info(f'[SemanticComments] {note_id}: 正文判断不确定，最多补采 {limit} 条一级评论，不采回复')
+            response = await self.xhs_client.get_note_comments(note_id=note_id, xsec_token=xsec_token, cursor='')
+            comments = response.get('comments') if isinstance(response, dict) else None
+            if not isinstance(comments, list) or any(not isinstance(item, dict) for item in comments):
+                raise DataFetchError('Invalid comment sample response')
+            # Keep only top-level records; embedded replies never enter the sample.
+            sample = [{key: value for key, value in item.items() if key != 'sub_comments'} for item in comments[:limit]]
+            count = len(sample)
+            reason = 'comment_budget_exhausted' if response.get('has_more') or len(comments) > limit else 'comments_exhausted'
+            available = reason == 'comments_exhausted'
+            await xhs_store.batch_update_xhs_note_comments(note_id, sample)
+            await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+        except (DataFetchError, RetryError) as exc:
+            reason = 'comments_fetch_failed'
+            utils.logger.warning(f'[SemanticComments] {note_id}: 评论补采失败（{type(exc).__name__}），保留已有文字')
+        finally:
+            self._semantic_comments_remaining += limit - count
+            await ExcelStoreBase.finalize_semantic_note('xhs', note_id, available, comment_stop_reason=reason)
+            utils.logger.info(f'[SemanticComments] {note_id}: 本帖补采 {count} 条，本主题本轮剩余预算 {self._semantic_comments_remaining} 条')
 
     async def create_xhs_client(self, httpx_proxy: Optional[str]) -> XiaoHongShuClient:
         """Create Xiaohongshu client"""

@@ -124,7 +124,7 @@ def finish_run(path, status):
     atomic_json(path, run)
 
 
-def register_output(path):
+def register_output(path, *, anchor=True):
     run_file = os.environ.get('MEDIACRAWLER_COLLECTION_RUN')
     if not run_file:
         return
@@ -138,7 +138,7 @@ def register_output(path):
             run['files'].append(relative)
         atomic_json(run_file, run)
         task = read_task(root, run['task_id'])
-        if not task['anchor']:
+        if anchor and not task['anchor']:
             task['anchor'] = relative
             atomic_json(task_path(root, task['id']), task)
 

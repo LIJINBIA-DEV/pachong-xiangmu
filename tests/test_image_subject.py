@@ -99,8 +99,8 @@ async def test_auto_checks_all_labels_persist_and_human_override_and_reset_survi
     result = await subject.recognize_files(root, [path], reviewer_factory=Mixed)
     assert (result['completed'], result['failed'], result['not_downloaded']) == (3, 1, 1)
     saved = read_state(root, path)['posts'][key]
-    assert saved['images'] == {'001.jpg': 'unqualified', '002.jpg': 'unqualified', '003.jpg': 'qualified', '005.jpg': 'unqualified'}
-    assert saved['image_sources']['005.jpg'] == 'download'
+    assert saved['images'] == {'001.jpg': 'unqualified', '002.jpg': 'unqualified', '003.jpg': 'qualified'}
+    assert '005.jpg' not in saved['image_sources']
     assert {saved['image_sources'][key] for key in ('001.jpg','002.jpg','003.jpg')} == {'model'}
     update_annotation(root, path, key, 'account', 'non_marketing')
     assert annotations(root, path)['entries'][key]['decision'] == 'qualified'
@@ -109,7 +109,7 @@ async def test_auto_checks_all_labels_persist_and_human_override_and_reset_survi
     update_annotation(root, path, key, 'image', None, '002.jpg')
     await subject.recognize_files(root, [path], reviewer_factory=Mixed)
     entry = annotations(root, path)['entries'][key]
-    assert entry['images'] == {'001.jpg': 'qualified', '002.jpg': None, '003.jpg': 'unqualified', '005.jpg': 'unqualified'}
+    assert entry['images'] == {'001.jpg': 'qualified', '002.jpg': None, '003.jpg': 'unqualified'}
     assert entry['decision'] == 'qualified'
     assert all(image['decision_source'] == 'manual' for image in entry['review_images'][:3])
 
@@ -122,12 +122,12 @@ async def test_post_correction_survives_model_defaults_and_retry(batch):
     update_annotation(root, path, key, 'post', 'qualified')
     await subject.recognize_files(root, [path], reviewer_factory=FakeReviewer)
     entry = annotations(root, path)['entries'][key]
-    assert entry['images'] == {'001.jpg': 'unqualified', '002.jpg': 'unqualified', '003.jpg': 'unqualified'}
+    assert entry['images'] == {'001.jpg': 'unqualified', '002.jpg': 'unqualified'}
     assert entry['decision'] == 'qualified' and entry['post_decision_source'] == 'manual'
-    assert entry['automatic_decision'] == 'unqualified'  # The missing original image is rejected too.
+    assert entry['automatic_decision'] is None  # Missing downloads await review, rather than count as rejected.
     await subject.recognize_files(root, [path], reviewer_factory=FakeReviewer)
     assert annotations(root, path)['entries'][key]['decision'] == 'qualified'
-    assert update_annotation(root, path, key, 'post', None)['entries'][key]['decision'] == 'unqualified'
+    assert update_annotation(root, path, key, 'post', None)['entries'][key]['decision'] is None
 
 
 @pytest.mark.asyncio
@@ -141,7 +141,7 @@ async def test_stale_auto_marks_are_cleared_but_legacy_human_marks_remain(batch)
     Image.new('RGB', (100, 100), 'green').save(media / '001.jpg')
     Image.new('RGB', (100, 100), 'green').save(media / '002.jpg')
     entry = annotations(root, path)['entries'][key]
-    assert entry['images'] == {'001.jpg': 'unqualified', '003.jpg': 'unqualified'}
+    assert entry['images'] == {'001.jpg': 'unqualified'}
     assert entry['review_images'][0]['decision_source'] == 'manual'
     assert entry['review_images'][1]['subject']['status'] == 'unrecognized'
 
@@ -156,7 +156,7 @@ async def test_failure_is_not_a_negative_label_and_can_retry(batch):
     assert result['failed'] == 2 and result['completed'] == 0
     entry = annotations(root, path)['entries']['1:可爱 公园']
     assert entry['review_images'][0]['subject']['status'] == 'error'
-    assert entry['images'] == {'003.jpg':'unqualified'} and entry['decision'] is None
+    assert entry['images'] == {} and entry['decision'] is None
     result = await subject.recognize_files(root, [path], reviewer_factory=FakeReviewer)
     assert result['failed'] == 0 and result['completed'] == 2
 
@@ -294,7 +294,7 @@ async def test_text_card_scoped_rerun_preserves_other_cached_scene_marks(batch, 
             'status': 'recognized', 'label': '二者都不是', 'reason': '环境为主。',
             'image_type': '实景照片', 'type_reason': '现场招牌和墙绘照片。'})
     before = annotations(root, file)['entries'][key]
-    assert before['images'] == {'001.jpg': 'qualified', '002.jpg': 'qualified', '003.jpg': 'unqualified'}
+    assert before['images'] == {'001.jpg': 'qualified', '002.jpg': 'qualified'}
     old_cache = subject.cache_path(root, media / '002.jpg').read_bytes()
     calls = []
     class Cards(FakeReviewer):
@@ -308,7 +308,7 @@ async def test_text_card_scoped_rerun_preserves_other_cached_scene_marks(batch, 
     assert result['total'] == result['completed'] == 1 and calls == ['001.jpg']
     assert subject.cache_path(root, media / '002.jpg').read_bytes() == old_cache
     after = annotations(root, file)['entries'][key]
-    assert after['images'] == {'001.jpg': 'unqualified', '002.jpg': 'qualified', '003.jpg': 'unqualified'}
+    assert after['images'] == {'001.jpg': 'unqualified', '002.jpg': 'qualified'}
     assert after['review_images'][1]['subject']['image_type'] == '实景照片'
     assert subject.fingerprint(text_previous=True, provider=provider) != subject.fingerprint(provider=provider)
 
@@ -349,7 +349,7 @@ async def test_collage_reclassification_changes_model_marks_but_keeps_human_over
             'fingerprint': subject.fingerprint(previous=True), 'signature': [stat.st_mtime_ns, stat.st_size],
             'status': 'recognized', 'label': '人物', 'reason': '误将局部路人作为主体。',
             'image_type': '宣传海报', 'type_reason': '误将现场招牌当作宣传。'})
-    assert annotations(root, file)['entries'][key]['images'] == {'001.jpg': 'unqualified', '003.jpg': 'unqualified'}
+    assert annotations(root, file)['entries'][key]['images'] == {'001.jpg': 'unqualified'}
     class Collage(FakeReviewer):
         async def classify(self, path):
             return {'label': '二者都不是', 'reason': '记录环境，人物只是局部细节。',
@@ -357,7 +357,7 @@ async def test_collage_reclassification_changes_model_marks_but_keeps_human_over
     result = await subject.recognize_files(root, [file], reviewer_factory=Collage)
     assert result['completed'] == 2 and result['cached'] == 0
     entry = annotations(root, file)['entries'][key]
-    assert entry['images'] == {'001.jpg': 'unqualified', '002.jpg': 'qualified', '003.jpg': 'unqualified'}
+    assert entry['images'] == {'001.jpg': 'unqualified', '002.jpg': 'qualified'}
     assert entry['review_images'][0]['decision_source'] == 'manual'
     assert entry['review_images'][1]['decision_source'] == 'model'
     assert file.read_bytes() == original
@@ -380,7 +380,7 @@ async def test_forced_rerun_bypasses_old_content_and_keeps_manual_edits_during_i
     assert result['completed'] == 2 and result['cached'] == 0 and result['force']
     assert len(calls) == 1  # Fresh inference, deduplicating only within this run.
     entry = annotations(root, file)['entries']['1:可爱 公园']
-    assert entry['images'] == {'001.jpg': 'unqualified', '002.jpg': 'qualified', '003.jpg': 'unqualified'}
+    assert entry['images'] == {'001.jpg': 'unqualified', '002.jpg': 'qualified'}
     assert entry['review_images'][0]['decision_source'] == 'manual'
 
 
@@ -443,7 +443,7 @@ async def test_type_missing_result_is_retryable_and_not_approved(batch):
             return {'label': '二者都不是', 'reason': '可能是海报。'}
     result = await subject.recognize_files(root, [path], reviewer_factory=Incomplete)
     assert result['failed'] == 2 and result['completed'] == 0
-    assert annotations(root, path)['entries']['1:可爱 公园']['images'] == {'003.jpg':'unqualified'}
+    assert annotations(root, path)['entries']['1:可爱 公园']['images'] == {}
 
 
 @pytest.mark.asyncio
@@ -457,7 +457,7 @@ async def test_sample_is_scoped_and_legacy_positive_needs_new_type(batch):
             'status': 'recognized', 'label': label, 'reason': '旧主体判断。', 'suggestion': 'qualified',
         })
     entry = annotations(root, path)['entries'][key]
-    assert entry['images'] == {'002.jpg': 'unqualified', '003.jpg': 'unqualified'}
+    assert entry['images'] == {'002.jpg': 'unqualified'}
     assert entry['review_images'][0]['subject']['type_status'] == 'pending'
     from api.services.image_subject import ImageSubjectJobs
     assert ImageSubjectJobs().status(root, path)['completed'] == 0
@@ -556,31 +556,10 @@ async def test_local_request_contains_pixels_only_and_validates_response(batch):
     await reviewer.close()
 
 
-def test_start_command_downloads_images_for_enabled_weibo_excel():
+@pytest.mark.parametrize('platform', ['wb', 'xhs'])
+@pytest.mark.parametrize('media', [False, True])
+def test_start_command_respects_media_choice_despite_legacy_recognition(platform, media):
     from api.services.crawler_manager import CrawlerManager
-    manager = CrawlerManager()
-    config = CrawlerStartRequest(platform='wb', save_option='excel', enable_media=False)
-    command = manager._build_command(config)
-    assert command[command.index('--get_media') + 1] == 'true'
-    config.image_subject_recognition = False
-    command = manager._build_command(config)
-    assert command[command.index('--get_media') + 1] == 'false'
-    config = CrawlerStartRequest(platform='xhs', save_option='excel', enable_media=False)
-    command = manager._build_command(config)
-    assert command[command.index('--get_media') + 1] == 'false'
-
-
-@pytest.mark.asyncio
-async def test_crawler_finalize_hook_scopes_files_and_keeps_saved_data(batch, monkeypatch):
-    import main
-    root, path, _ = batch
-    import config
-    monkeypatch.setattr(config, 'SAVE_DATA_PATH', str(root))
-    monkeypatch.setenv('MEDIACRAWLER_IMAGE_SUBJECT', '1')
-    selected = []
-    async def recognize(root_arg, files, progress):
-        selected.extend(files)
-        return {'completed': 2, 'total': 2, 'failed': 0, 'not_downloaded': 1}
-    monkeypatch.setattr(subject, 'recognize_files', recognize)
-    await main._recognize_saved_images([path])
-    assert selected == [path] and path.exists()
+    config = CrawlerStartRequest(platform=platform, save_option='excel', enable_media=media, image_subject_recognition=True)
+    command = CrawlerManager()._build_command(config)
+    assert command[command.index('--get_media') + 1] == str(media).lower()

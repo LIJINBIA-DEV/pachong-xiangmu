@@ -14,6 +14,8 @@ export const workspacePages: WorkspacePage[] = ['dashboard', 'config', 'console'
 export function WorkspaceSidebar({ page, onNavigate }: { page: WorkspacePage; onNavigate: (page: WorkspacePage) => void }) {
   const { t } = useTranslation('workspace')
   const status = useCrawlerStore((state) => state.status)
+  const stage = useCrawlerStore((state) => state.stage)
+  const displayStatus = stage === 'waiting_login' ? stage : status === 'error' || status === 'stopping' ? status : stage === 'idle' ? status : stage
   const icons = { dashboard: dashboardIcon, config: configIcon, console: consoleIcon, data: dataIcon, review: reviewIcon, logs: logsIcon }
   return (
     <aside className={`shrink-0 border-b border-cyber-border-subtle bg-cyber-bg-panel md:w-52 md:border-b-0 md:border-r ${page === 'config' ? 'config-sidebar' : page === 'dashboard' ? 'dashboard-sidebar' : ''}`}>
@@ -28,7 +30,7 @@ export function WorkspaceSidebar({ page, onNavigate }: { page: WorkspacePage; on
         })}
       </nav>
       <div className="hidden border-t border-cyber-border-subtle px-5 py-4 text-xs leading-6 text-cyber-text-secondary md:block">
-        <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${status === 'running' ? 'bg-cyber-neon-green' : 'bg-cyber-text-secondary'}`} />{t(`status.${status}`)}</div>
+        <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${displayStatus === 'running' ? 'bg-cyber-neon-green' : 'bg-cyber-text-secondary'}`} />{t(`status.${displayStatus}`)}</div>
         <p className="mt-2">{t('navigationHint')}</p>
       </div>
     </aside>

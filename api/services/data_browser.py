@@ -5,7 +5,7 @@ import csv
 from functools import lru_cache
 import json
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlsplit, unquote
 
 from openpyxl import load_workbook
 from media_downloader.paths import build_media_dir
@@ -175,6 +175,21 @@ def pictures(root, path, note):
     return local or [{'url': url, 'name': f'image-{i}', 'local': False} for i, url in enumerate(image_urls(note), 1)]
 
 
+def local_image_path(root, image):
+    prefix = '/api/data/media/'
+    if not image.get('local') or not image.get('url', '').startswith(prefix):
+        return None
+    root = Path(root).resolve()
+    path = (root / unquote(image['url'][len(prefix):])).resolve()
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return None
+    if 'media' not in relative.parts or any(p.startswith('.') for p in relative.parts) or path.suffix.lower() not in IMAGE_TYPES or not path.is_file():
+        return None
+    return path
+
+
 def image_download_info(note, images):
     """Source image metadata and local downloads are separate, including old files."""
     names = note.get('image_names') or []
@@ -223,14 +238,43 @@ def comment_hits(note, rows):
     return hits, all_comments
 
 
+def reviewed_notes(root, path, notes, comments):
+    from api.services.manual_review import annotations, note_key, read_state
+    # Explicit post conclusions affect the working list; automatic image
+    # defaults alone must not erase the original semantic screening results.
+    state = read_state(root, path)
+    keys = {key for key, record in state['posts'].items()
+            if record.get('post_decision_source') == 'manual' and record.get('post_decision') in {'qualified', 'unqualified'}}
+    if not keys:
+        return notes
+    entries = annotations(root, path, keys=keys, persist=False, dataset=(notes, comments))['entries']
+    result = []
+    for note in notes:
+        entry = entries.get(note_key(note))
+        if entry is None:
+            result.append(note)
+            continue
+        result.append({**note,
+                       'collection_status': {'qualified': 'matched', 'unqualified': 'excluded'}.get(entry['decision'], note.get('semantic_result')),
+                       'manual_post_decision': entry['post_decision'],
+                       'review_decision_source': entry['decision_source'],
+                       'review_decision_reason': entry['decision_reason']})
+    return result
+
+
+def collection_status(note):
+    return note.get('collection_status') or note.get('semantic_result')
+
+
 def browse_posts(root, path, offset=0, limit=20, search='', status='all'):
     from weibo_metadata import metadata_platform, metadata_view
     notes, by_note = load_review_dataset(root, path)
-    counts = Counter(text(n.get('semantic_result')) for n in notes)
+    notes = reviewed_notes(root, path, notes, by_note)
+    counts = Counter(text(collection_status(note)) for note in notes)
     filtered = []
     needle = search.strip().casefold()
     for note in notes:
-        if status != 'all' and note.get('semantic_result') != status:
+        if status != 'all' and collection_status(note) != status:
             continue
         nid = post_id(note)
         comments = by_note.get(nid, [])
@@ -246,12 +290,15 @@ def browse_posts(root, path, offset=0, limit=20, search='', status='all'):
             'key': f'{nid}:{text(note.get("source_keyword"))}', 'id': nid, 'index': index + 1,
             'title': text(note.get('title')), 'content': content,
             'url': web_url(note.get('note_url') or note.get('url')),
-            'source_keyword': text(note.get('source_keyword')), 'status': note.get('semantic_result'),
+            'source_keyword': text(note.get('source_keyword')), 'status': collection_status(note),
+            'semantic_status': note.get('semantic_result'),
+            'review_decision_source': note.get('review_decision_source'),
+            'review_decision_reason': note.get('review_decision_reason'),
             'nickname': text(note.get('nickname')), 'published_at': text(note.get('create_date_time') or note.get('time')),
             **metadata_view(note, metadata_platform(note, path)),
             'evidence': text(note.get('semantic_evidence') or note.get('evidence_text')),
             'evidence_source': text(note.get('evidence_source')),
-            'selection_origin': text(note.get('selection_origin')),
+            'selection_origin': 'user_confirmed' if note.get('review_decision_source') == 'manual' and collection_status(note) == 'matched' else text(note.get('selection_origin')),
             'manual_review_required': note.get('manual_review_required') in (True, 1, 'true', 'True'),
             'jev_original_choice': text(note.get('jev_original_choice')),
             'hit_comments': hits, 'comments': all_comments, 'images': images,

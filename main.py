@@ -110,30 +110,6 @@ async def _generate_wordcloud_if_needed() -> None:
         print(f"[Main] Error generating wordcloud: {e}")
 
 
-async def _recognize_saved_images(files) -> None:
-    if os.environ.get('MEDIACRAWLER_IMAGE_SUBJECT') != '1' or not files:
-        return
-    from pathlib import Path
-    from image_subject import recognize_files
-    from api.services.image_subject import image_subject_jobs
-    root = Path(config.SAVE_DATA_PATH or 'data').resolve()
-    # Model inference follows text review/Excel flush, so local SemIf has already
-    # released its GPU process. Source workbooks and human labels remain intact.
-    from image_subject_settings import runtime_settings
-    provider_name = '硅基流动' if runtime_settings(root)['provider'] == 'siliconflow' else '本地 Qwen'
-    print(f'[ImageSubject] 文本采集已保存，开始{provider_name}图片主体与类型识别。', flush=True)
-    def progress(state):
-        from collection_tasks import atomic_json
-        for file in files:
-            atomic_json(image_subject_jobs.state_path(root, file), state)
-    try:
-        state = await recognize_files(root, files, progress=progress)
-        print(f"[ImageSubject] 图片识别完成：{state['completed']}/{state['total']}，失败 {state['failed']}，未下载 {state['not_downloaded']}。", flush=True)
-    except Exception as exc:
-        progress({'status': 'error', 'error': str(exc) if str(exc).startswith('image_subject_') else type(exc).__name__})
-        print(f'[ImageSubject] 图片识别暂未完成（{type(exc).__name__}）；采集数据已保留，可在人工审核页重试。', flush=True)
-
-
 async def main() -> None:
     global crawler
 
@@ -152,15 +128,10 @@ async def main() -> None:
     review_progress("OPENING_BROWSER")
     await crawler.start()
 
-    from store.excel_store_base import ExcelStoreBase
-    image_files = [instance.filename.resolve() for instance in ExcelStoreBase._instances.values() if instance.platform == 'weibo']
-
     try:
         await _finalize_semantics_if_needed()
     finally:
         _flush_excel_if_needed()
-
-    await _recognize_saved_images([file for file in image_files if file.is_file()])
 
     # Generate wordcloud after crawling is complete
     # Only for JSON save mode

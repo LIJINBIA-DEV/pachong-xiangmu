@@ -14,6 +14,9 @@ export interface BrowsePost {
   url: string
   source_keyword: string
   status: string
+  semantic_status?: string
+  review_decision_source?: 'manual' | 'automatic' | null
+  review_decision_reason?: string | null
   nickname: string
   published_at: string
   account_id?: string
@@ -79,12 +82,13 @@ export interface ImageSubjectStatus {
   provider?: 'local' | 'siliconflow'
   model?: string
 }
-export interface ReviewImage { key: string; url: string; name: string; local: boolean; subject?: ImageSubjectPrediction; download_problem?: 'not_downloaded' | 'download_failed' | null; decision_source?: 'model' | 'manual' | 'download' | null }
+export interface ReviewImage { key: string; url: string; remote_url?: string; name: string; local: boolean; subject?: ImageSubjectPrediction; download_problem?: 'not_downloaded' | 'download_failed' | null; decision_source?: 'model' | 'manual' | 'download' | null }
 export type ReviewDecision = 'qualified' | 'unqualified' | null
 export type AccountDecision = 'marketing' | 'non_marketing' | null
 export interface ReviewEntry {
   decision: ReviewDecision
-  decision_reason?: 'marketing' | 'no_images' | 'all_images_rejected' | 'account_pending' | 'images_pending' | 'retained' | 'manual_qualified' | 'manual_unqualified' | 'pet_not_allowed' | 'semantic_reject' | 'evidence_contradicted' | 'news_media_account' | 'government_account' | 'institution_account' | 'account_blocklist_bot' | 'account_blocklist_media' | 'account_blocklist_government'
+  requires_images?: boolean
+  decision_reason?: 'text_review_pending' | 'marketing' | 'no_images' | 'all_images_rejected' | 'account_pending' | 'images_pending' | 'retained' | 'manual_qualified' | 'manual_unqualified' | 'pet_not_allowed' | 'semantic_reject' | 'evidence_contradicted' | 'news_media_account' | 'government_account' | 'institution_account' | 'account_blocklist_bot' | 'account_blocklist_media' | 'account_blocklist_government'
   semantic_rejection_reason?: 'pet_not_allowed' | 'semantic_reject' | 'evidence_contradicted' | null
   account_rejection_reason?: ReviewEntry['decision_reason'] | null
   account_identity_status?: 'excluded' | 'review' | 'personal' | null
@@ -130,7 +134,9 @@ export interface CollectionLogEntry {
 }
 export interface CollectionLogsResponse {
   task_id: string | null
-  rounds: { number: number; status: string; started_at: string | null; finished_at: string | null }[]
+  overview?: { platform: string; status: string; target: number; topics: number; saved: number; checked: number; qualified: number; comments: number; images: number; pending_review: number; files: string[]; missing_files: string[]; filter: string | null; comments_enabled?: boolean; media_enabled?: boolean; publish_range?: string; publish_start?: string; publish_end?: string }
+  timeline?: { kind: string; at: string; round?: number; target?: number; retained?: number; status?: string; keyword?: string; post_id?: string; decision?: string | null; model?: string; records?: number; error?: string | null; reason?: string }[]
+  rounds: { number: number; status: string; started_at: string | null; finished_at: string | null; elapsed_seconds?: number | null; target?: number; retained?: number; pages?: number }[]
   entries: CollectionLogEntry[]
   account_events?: { stage: string; source_file: string; note_id: string; keyword: string; nickname: string; status: 'excluded' | 'review'; reason: string; evidence: string; recorded_at: string }[]
   comment_events?: { id: string; stage: string; note_id: string; status: string; reason: string; explanation: string; response_message: string; exception_type: string; http_status?: number; api_ok?: number; request_count?: number; recorded_at: string }[]

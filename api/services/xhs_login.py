@@ -1,7 +1,6 @@
 """Display the official Xiaohongshu QR in the workbench; keep credentials private."""
 import asyncio
 import base64
-import os
 import re
 import time
 
@@ -17,11 +16,15 @@ PROFILE = "xpath=//a[contains(@href, '/user/profile/')]//span[normalize-space(te
 
 class XhsWebLogin(WeiboWebLogin):
     # Reuse the task/lock/cancellation lifecycle, not Weibo's authentication logic.
+    def local_browser_enabled(self):
+        from login_environment import local_login_available
+        return local_login_available() and getattr(self, 'login_environment', 'auto') != 'server'
+
     def status(self):
         from api.services.interactive_login import desktop_status
         return {**self.state, 'busy': self.busy, 'saved_session': bool(read_session(self.root)),
                 **desktop_status(),
-                'supported': os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1'}
+                'local_browser': self.local_browser_enabled(), 'supported': True}
 
     async def authenticated(self, page, context):
         # Guest web_session cookies exist too: require the site's signed-in profile UI.
@@ -54,6 +57,9 @@ class XhsWebLogin(WeiboWebLogin):
 
     async def _run(self, refresh):
         from api.services.interactive_login import desktop_enabled, run_interactive_login
+        if self.local_browser_enabled():
+            await run_interactive_login(self, refresh, 'xhs', persistent_profile=True)
+            return
         if desktop_enabled():
             await run_interactive_login(self, refresh, 'xhs')
             return

@@ -31,12 +31,17 @@ from typing import Literal
 from api.services.data_browser import DATA_TYPES, IMAGE_TYPES, browse_posts
 from api.services.data_file_visibility import collection_files, internal_record
 from api.services.manual_review import annotations, update_annotation
+from api.services import ai_settings
+from api.services.ai_settings import AISettingsUpdate
+from api.services.content_summary import SummaryRequest, summary_jobs, markdown as summary_markdown
 from api.services.data_trash import move_to_trash, list_trash, restore_file, purge_file
 
-class ImageSettingsPrivateInputRoute(APIRoute):
+class PrivateDataInputRoute(APIRoute):
     def get_route_handler(self):
         original = super().get_route_handler()
-        if self.path not in {'/data/image-subject/settings', '/api/data/image-subject/settings'} or 'PUT' not in self.methods:
+        private_summary = (self.path in {'/data/content-summary', '/api/data/content-summary'} and 'POST' in self.methods) or (self.path in {'/data/ai-settings', '/api/data/ai-settings'} and 'PUT' in self.methods)
+        private_image = self.path in {'/data/image-subject/settings', '/api/data/image-subject/settings'} and 'PUT' in self.methods
+        if not (private_summary or private_image):
             return original
 
         async def private_validation(request: Request):
@@ -45,12 +50,12 @@ class ImageSettingsPrivateInputRoute(APIRoute):
             except RequestValidationError:
                 # Pydantic validation details may contain the raw input,
                 # including an API key submitted with the wrong JSON type.
-                raise HTTPException(status_code=422, detail='image_subject_key_invalid') from None
+                raise HTTPException(status_code=422, detail='summary_invalid_request' if private_summary else 'image_subject_key_invalid') from None
 
         return private_validation
 
 
-router = APIRouter(prefix="/data", tags=["data"], route_class=ImageSettingsPrivateInputRoute)
+router = APIRouter(prefix="/data", tags=["data"], route_class=PrivateDataInputRoute)
 
 # Data directory
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
@@ -115,27 +120,74 @@ class ImageSubjectSettingsUpdate(BaseModel):
 
 @router.get('/image-subject/settings')
 def get_image_subject_settings():
-    from image_subject_settings import public_settings
-    return public_settings(data_root())
+    raise HTTPException(status_code=410, detail='image_recognition_removed')
 
 
 @router.put('/image-subject/settings')
 async def update_image_subject_settings(change: ImageSubjectSettingsUpdate):
+    raise HTTPException(status_code=410, detail='image_recognition_removed')
+
+
+@router.get('/ai-settings')
+async def get_ai_settings():
+    import asyncio
+    try:
+        return await asyncio.to_thread(ai_settings.public_settings, data_root())
+    except Exception:
+        raise HTTPException(422, 'summary_settings_storage_failed') from None
+
+
+@router.put('/ai-settings')
+async def update_ai_settings(change: AISettingsUpdate, request: Request):
+    import asyncio
+    from urllib.parse import urlsplit
+    origin = request.headers.get('origin')
+    if origin and urlsplit(origin).netloc != request.headers.get('host'):
+        raise HTTPException(403, 'summary_settings_origin_denied')
+    try:
+        return await asyncio.to_thread(ai_settings.save_settings, data_root(), change)
+    except ValueError as exc:
+        code = str(exc)
+        raise HTTPException(422, code if code in {'summary_invalid_key', 'summary_invalid_endpoint'} else 'summary_settings_storage_failed') from None
+    except Exception:
+        raise HTTPException(422, 'summary_settings_storage_failed') from None
+
+
+@router.get('/content-summary')
+async def get_content_summary(file: str):
+    import asyncio
+    try:
+        return await asyncio.to_thread(summary_jobs.info, data_root(), resolve_file(file))
+    except (OSError, ValueError, KeyError, TypeError, BadZipFile):
+        raise HTTPException(status_code=422, detail='summary_read_failed') from None
+
+
+@router.post('/content-summary')
+async def generate_content_summary(change: SummaryRequest):
     from api.services import crawler_manager
-    from api.services.image_subject import image_subject_jobs
-    from image_subject import inference_busy
-    from image_subject_settings import save_settings
-    async with crawler_manager._lock:
-        if crawler_manager.status in {'running', 'stopping'} or (crawler_manager.process and crawler_manager.process.poll() is None):
-            raise HTTPException(status_code=409, detail='collection_active')
-        if image_subject_jobs.running or inference_busy(data_root()):
-            raise HTTPException(status_code=409, detail='image_subject_busy')
-        try:
-            key = change.api_key.get_secret_value() if change.api_key is not None else None
-            return save_settings(data_root(), change.provider, key, change.clear_key)
-        except (ValueError, OSError) as exc:
-            code = str(exc) if str(exc).startswith('image_subject_') else 'image_subject_key_storage_failed'
-            raise HTTPException(status_code=422, detail=code) from exc
+    if crawler_manager.status in {'running', 'stopping'}:
+        raise HTTPException(status_code=409, detail='summary_collection_active')
+    try:
+        return await summary_jobs.start(data_root(), resolve_file(change.file), change)
+    except ValueError as exc:
+        code = str(exc)
+        allowed = {'summary_busy', 'summary_missing_key', 'summary_invalid_key', 'summary_empty', 'summary_storage_failed', 'summary_settings_required', 'summary_invalid_endpoint'}
+        raise HTTPException(status_code=409, detail=code if code in allowed else 'summary_failed') from None
+    except (OSError, KeyError, TypeError, BadZipFile):
+        raise HTTPException(status_code=422, detail='summary_failed') from None
+
+
+@router.get('/content-summary/{identity}/download')
+def download_content_summary(identity: str, file: str):
+    from urllib.parse import quote
+    try:
+        report = summary_jobs.report(data_root(), resolve_file(file), identity)
+        return Response(content=summary_markdown(report), media_type='text/markdown; charset=utf-8',
+                        headers={'Content-Disposition': "attachment; filename=content-summary.md; filename*=UTF-8''" + quote('内容总结_' + identity[:8] + '.md')})
+    except LookupError:
+        raise HTTPException(status_code=404, detail='summary_not_found') from None
+    except (OSError, ValueError, KeyError, TypeError):
+        raise HTTPException(status_code=422, detail='summary_read_failed') from None
 
 
 @router.get('/collection-logs')
@@ -150,23 +202,11 @@ def get_collection_logs(file: str):
 
 @router.get('/image-subject')
 def image_subject_status(file: str):
-    from api.services.image_subject import image_subject_jobs
-    try:
-        return image_subject_jobs.status(data_root(), resolve_file(file))
-    except (ValueError, OSError, KeyError, BadZipFile) as exc:
-        raise HTTPException(status_code=422, detail='image_subject_read_failed') from exc
-
+    raise HTTPException(status_code=410, detail='image_recognition_removed')
 
 @router.post('/image-subject')
 async def recognize_image_subjects(change: ImageSubjectRequest):
-    from api.services import crawler_manager
-    from api.services.image_subject import image_subject_jobs
-    try:
-        return await image_subject_jobs.start(data_root(), resolve_file(change.file), crawler_manager, force=change.force)
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except (OSError, KeyError, BadZipFile) as exc:
-        raise HTTPException(status_code=422, detail='image_subject_read_failed') from exc
+    raise HTTPException(status_code=410, detail='image_recognition_removed')
 
 
 class SupplementRequest(BaseModel):
@@ -202,9 +242,7 @@ async def supplement_collection(change: SupplementRequest):
 
 def check_file_mutation_allowed():
     from api.services import crawler_manager
-    from api.services.image_subject import image_subject_jobs
-    from image_subject import inference_busy
-    if crawler_manager.status in {'running', 'stopping'} or image_subject_jobs.running or inference_busy(data_root()):
+    if crawler_manager.status in {'running', 'stopping'}:
         raise HTTPException(status_code=409, detail='collection_active')
 
 
@@ -409,6 +447,27 @@ def get_file_info(file_path: Path) -> dict:
         "record_count": record_count,
         "type": file_path.suffix[1:] if file_path.suffix else "unknown"
     }
+    info.update(file_kind='semantic' if file_path.name.lower().endswith('_semantic.xlsx') else None,
+                retained_count=None, review_count=None)
+    if file_path.suffix.lower() == '.xlsx':
+        from openpyxl import load_workbook
+        try:
+            book = load_workbook(file_path, read_only=True, data_only=True)
+            try:
+                if info['file_kind'] == 'semantic' or 'Contents' in book:
+                    info['file_kind'] = info['file_kind'] or 'collection'
+                    def count_posts(name):
+                        if name not in book:
+                            return 0
+                        rows = book[name].iter_rows(values_only=True)
+                        next(rows, None)  # Column headers are not posts.
+                        return sum(any(value is not None for value in row) for row in rows)
+                    info['retained_count'] = count_posts('Matched' if info['file_kind'] == 'semantic' else 'Contents')
+                    info['review_count'] = count_posts('Review')
+            finally:
+                book.close()
+        except (OSError, ValueError, KeyError, BadZipFile):
+            pass  # Unreadable or partially written files have unknown counts, not zero.
     if file_path.name.lower().endswith('_semantic.xlsx'):
         from collection_tasks import find_task, task_files
         main = file_path.with_name(file_path.name[:-len('_semantic.xlsx')] + '.xlsx')
@@ -447,8 +506,31 @@ async def list_data_files(platform: Optional[str] = None, file_type: Optional[st
     return {"files": files}
 
 
+@router.get('/tasks')
+async def list_collection_tasks():
+    from api.services.collection_catalog import collection_catalog
+    files = (await list_data_files())['files']
+    return {'tasks': collection_catalog(data_root(), files)}
+
+
+@router.get('/export')
+def export_collection_posts(file: str, status: str = Query('matched', pattern='^(matched|review|excluded|unfiltered)$')):
+    from urllib.parse import quote
+    from api.services.task_export import export_task_posts
+    path = resolve_file(file)
+    if path.suffix.lower() not in DATA_TYPES:
+        raise HTTPException(status_code=400, detail='Unsupported data file')
+    try:
+        content = export_task_posts(data_root(), path, status)
+    except (OSError, ValueError, KeyError, BadZipFile) as exc:
+        raise HTTPException(status_code=422, detail='Could not export saved posts') from exc
+    label = {'matched': '已保留帖子', 'review': '待复核帖子', 'excluded': '已排除帖子', 'unfiltered': '未筛选帖子'}[status]
+    return Response(content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={
+        'Content-Disposition': "attachment; filename*=UTF-8''" + quote(label + '_' + path.stem + '.xlsx')})
+
+
 @router.get("/files/{file_path:path}")
-async def get_file_content(file_path: str, preview: bool = True, limit: int = 100):
+async def get_file_content(file_path: str, preview: bool = True, limit: int = Query(100, ge=1, le=1000), sheet: Optional[str] = None):
     """Get file content or preview"""
     full_path = resolve_file(file_path)
 
@@ -476,7 +558,7 @@ async def get_file_content(file_path: str, preview: bool = True, limit: int = 10
                     data = json.load(f)
                     if isinstance(data, list):
                         return {"data": data[:limit], "total": len(data)}
-                    return {"data": data, "total": 1}
+                    return {"data": [data], "total": 1}
             elif full_path.suffix == ".csv":
                 import csv
                 with open(full_path, "r", encoding="utf-8") as f:
@@ -490,24 +572,46 @@ async def get_file_content(file_path: str, preview: bool = True, limit: int = 10
                     f.seek(0)
                     total = sum(1 for _ in f) - 1
                     return {"data": rows, "total": total}
-            elif full_path.suffix.lower() in (".xlsx", ".xls"):
+            elif full_path.suffix.lower() == ".xlsx":
+                from openpyxl import load_workbook
+                from math import isfinite
+                book = load_workbook(full_path, read_only=True, data_only=True)
+                try:
+                    names = book.sheetnames
+                    if sheet and sheet not in names:
+                        raise HTTPException(status_code=400, detail="Unknown worksheet")
+                    selected = sheet or next((name for name in names if book[name].max_row > 1), names[0])
+                    rows = book[selected].iter_rows(values_only=True)
+                    if selected == 'Summary':
+                        columns = ['metric', 'value']
+                    else:
+                        columns = [str(value) if value is not None else f'column_{index}'
+                                   for index, value in enumerate(next(rows, ()), 1)]
+                    data, total = [], 0
+                    for row in rows:
+                        if not any(value is not None for value in row):
+                            continue
+                        total += 1
+                        if len(data) < limit:
+                            data.append(dict(zip(columns, (None if isinstance(value, float) and not isfinite(value) else value for value in row))))
+                    return {'data': data, 'total': total, 'columns': columns, 'sheets': names, 'sheet': selected}
+                finally:
+                    book.close()
+            elif full_path.suffix.lower() == ".xls":
                 import pandas as pd
-                # Read first limit rows
-                df = pd.read_excel(full_path, nrows=limit)
-                # Get total row count (only read first column to save memory)
-                df_count = pd.read_excel(full_path, usecols=[0])
-                total = len(df_count)
-                # Convert to list of dictionaries, handle NaN values
-                rows = df.where(pd.notnull(df), None).to_dict(orient='records')
-                return {
-                    "data": rows,
-                    "total": total,
-                    "columns": list(df.columns)
-                }
+                with pd.ExcelFile(full_path) as book:
+                    if sheet and sheet not in book.sheet_names:
+                        raise HTTPException(status_code=400, detail="Unknown worksheet")
+                    selected = sheet or book.sheet_names[0]
+                    df = book.parse(selected)
+                    rows = df.head(limit).astype(object).where(pd.notnull(df.head(limit)), None).to_dict(orient='records')
+                    return {'data': rows, 'total': len(df), 'columns': list(df.columns), 'sheets': book.sheet_names, 'sheet': selected}
             else:
                 raise HTTPException(status_code=400, detail="Unsupported file type for preview")
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON file")
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
     else:

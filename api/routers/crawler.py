@@ -16,10 +16,11 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
-import os
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, Request
+from fastapi.routing import APIRoute
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, SecretStr
 
 from semantic_filter import MODEL, check_jev_connection
@@ -27,12 +28,55 @@ from semantic_filter import MODEL, check_jev_connection
 from ..schemas import CrawlerStartRequest, CrawlerStatusResponse
 from ..services import crawler_manager
 
-router = APIRouter(prefix="/crawler", tags=["crawler"])
+class PrivateSemanticInputRoute(APIRoute):
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+        if not self.path.endswith(('/crawler/semantic-settings', '/crawler/semantic-key-check')):
+            return handler
+        async def private_handler(request):
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                raise HTTPException(422, 'semantic_settings_invalid_request') from None
+        return private_handler
+
+
+router = APIRouter(prefix="/crawler", tags=["crawler"], route_class=PrivateSemanticInputRoute)
+
+from api.services import semantic_settings
+from api.services.semantic_settings import SemanticSettingsUpdate
+
+
+@router.get('/semantic-settings')
+def semantic_key_status(response: Response):
+    from api.routers.data import data_root
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        return semantic_settings.public_settings(data_root())
+    except Exception:
+        raise HTTPException(422, 'semantic_settings_storage_failed') from None
+
+
+@router.put('/semantic-settings')
+def save_semantic_key(change: SemanticSettingsUpdate, request: Request, response: Response):
+    from urllib.parse import urlsplit
+    from api.routers.data import data_root
+    response.headers['Cache-Control'] = 'no-store'
+    origin = request.headers.get('origin')
+    if origin and urlsplit(origin).netloc != request.headers.get('host'):
+        raise HTTPException(403, 'semantic_settings_origin_denied')
+    try:
+        result = semantic_settings.save_settings(data_root(), change)
+        for cached in list(crawler_manager.task_credentials.values()):
+            cached.pop('semantic_api_key', None)
+        return result
+    except Exception:
+        raise HTTPException(422, 'semantic_settings_save_failed') from None
 
 
 class WebLoginRequest(BaseModel):
     refresh: bool = False
-    login_environment: Literal['auto', 'server'] = 'auto'
+    login_environment: Literal['auto', 'local', 'server'] = 'auto'
 
 
 @router.get('/weibo-login')
@@ -86,10 +130,9 @@ class SemanticKeyCheckRequest(BaseModel):
 
 @router.post("/semantic-key-check")
 async def check_semantic_key(request: SemanticKeyCheckRequest):
-    """Test the selected Jev model without storing or returning the API key."""
-    api_key = (
-        request.api_key.get_secret_value() if request.api_key else ""
-    ) or os.environ.get("TYPESAFE_API_KEY", "")
+    """Test the selected Jev model using an explicit or saved credential."""
+    from api.routers.data import data_root
+    api_key = (request.api_key.get_secret_value() if request.api_key else "") or semantic_settings.runtime_key(data_root())
     try:
         return await check_jev_connection(api_key.strip(), request.model)
     except ValueError as exc:

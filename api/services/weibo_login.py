@@ -1,7 +1,6 @@
 """Headless official Weibo QR login; no tokens or Cookie values leave this service."""
 import asyncio
 import base64
-import os
 from pathlib import Path
 import re
 import secrets
@@ -29,12 +28,11 @@ class WeiboWebLogin:
         from api.services.interactive_login import desktop_status
         return {**self.state, 'busy': self.busy, 'saved_session': bool(read_session(self.root)),
                 **desktop_status(),
-                'supported': os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1'}
+                'supported': True}
 
     async def start(self, manager, refresh=False, login_environment='auto'):
         from login_environment import resolve_login_environment
-        if resolve_login_environment(login_environment) != 'server':
-            raise ValueError('web_login_unsupported')
+        mode = resolve_login_environment(login_environment)
         async with manager._lock:
             if manager.status in {'running', 'stopping'} or (manager.process and manager.process.poll() is None):
                 raise ValueError('collection_active')
@@ -43,6 +41,7 @@ class WeiboWebLogin:
                 if other is not self and other.busy:
                     raise ValueError('other_platform_login_active')
             await self.close()
+            self.login_environment = mode
             self.state = {'status': 'loading', 'qr_image': None, 'expires_at': None, 'reason': None,
                           'attempt_id': secrets.token_hex(8)}
             self.task = asyncio.create_task(self._run(refresh))

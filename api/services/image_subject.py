@@ -48,26 +48,7 @@ class ImageSubjectJobs:
         return {**value, 'busy': busy, **public_settings(root)}
 
     async def start(self, root, path, manager, force=False):
-        async with manager._lock:
-            if manager.status in {'running', 'stopping'} or (manager.process and manager.process.poll() is None):
-                raise ValueError('collection_active')
-            if self.running or inference_busy(root):
-                raise ValueError('image_subject_busy')
-            options = runtime_settings(root)
-            if options['provider'] == 'local' and not model_ready():
-                raise ValueError('image_subject_model_missing')
-            if options['provider'] == 'siliconflow' and not options['api_key']:
-                raise ValueError('image_subject_key_missing')
-            state = await asyncio.to_thread(self.status, root, path)
-            if state['total'] == 0:
-                raise ValueError('image_subject_no_downloads')
-            self.key = str(path)
-            state.update(status='queued', error=None, force=force)
-            if force:
-                state.update(completed=0, failed=0, cached=0)
-            atomic_json(self.state_path(root, path), state)
-            self.task = asyncio.create_task(self._run(root, path, force=force, options=options))
-            return {**state, 'busy': True}
+        raise ValueError('image_recognition_removed')
 
     async def _run(self, root, path, force=False, options=None):
         run_kwargs = {'options': options} if options else {}

@@ -94,8 +94,6 @@ async def close_image_subject_jobs():
     if os.environ.get('MEDIACRAWLER_CONTAINER_MODE') == '1':
         from api.services import crawler_manager
         await crawler_manager.stop()
-    from api.services.image_subject import image_subject_jobs
-    await image_subject_jobs.close()
 
 
 @app.get("/")

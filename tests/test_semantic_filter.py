@@ -180,6 +180,7 @@ async def test_semantic_start_requires_key_before_crawling(monkeypatch):
     request = CrawlerStartRequest(
         platform="wb", crawler_type="search", save_option="excel",
         keywords="可爱 公园", keyword_pairs=[("可爱", "公园")], semantic_filter=True,
+        image_subject_recognition=False,
     )
     with pytest.raises(ValueError, match="TYPESAFE_API_KEY"):
         await manager.start(request)
@@ -187,7 +188,9 @@ async def test_semantic_start_requires_key_before_crawling(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_web_key_and_model_reach_child_environment_without_entering_logs(monkeypatch):
+async def test_web_key_and_model_reach_child_environment_without_entering_logs(monkeypatch, tmp_path):
+    import config
+    monkeypatch.setattr(config, 'SAVE_DATA_PATH', str(tmp_path))
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     captured = {}
 
@@ -208,6 +211,7 @@ async def test_web_key_and_model_reach_child_environment_without_entering_logs(m
         keywords="可爱 公园", keyword_pairs=[("可爱", "公园")],
         semantic_filter=True, semantic_model="jev-1.13.0",
         semantic_api_key="web-test-secret",
+        image_subject_recognition=False,
     )
     assert await manager.start(request)
     assert captured["env"]["TYPESAFE_API_KEY"] == "web-test-secret"

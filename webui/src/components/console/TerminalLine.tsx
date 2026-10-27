@@ -1,8 +1,11 @@
+import { memo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import type { LogEntry } from '@/types/crawler'
 
 interface TerminalLineProps {
   log: LogEntry
+  onInspect?: () => void
 }
 
 const levelConfig: Record<string, { text: string; bg: string; glow: string }> = {
@@ -41,7 +44,11 @@ const levelIcons: Record<string, string> = {
   debug: 'DBG',
 }
 
-export function TerminalLine({ log }: TerminalLineProps) {
+export const TerminalLine = memo(function TerminalLine({ log, onInspect }: TerminalLineProps) {
+  const { t } = useTranslation('terminal')
+  const [expanded, setExpanded] = useState(false)
+  const long = log.message.length > 240 || /[\r\n]/.test(log.message)
+  const preview = log.message.replace(/\s+/g, ' ').slice(0, 240)
   const config = levelConfig[log.level] || levelConfig.info
 
   return (
@@ -62,9 +69,13 @@ export function TerminalLine({ log }: TerminalLineProps) {
       </span>
 
       {/* Message */}
-      <span className={cn('break-all', config.text)}>
-        {log.message}
-      </span>
+      <div className={cn('min-w-0 flex-1 break-all', config.text)}>
+        {expanded ? <pre className="whitespace-pre-wrap font-inherit max-h-64 overflow-auto">{log.message}</pre> : <span>{long ? `${preview}…` : log.message}</span>}
+        {long && <button type="button" aria-expanded={expanded} className="ml-2 text-[#79c0ff] underline" onClick={() => {
+          if (!expanded) onInspect?.()
+          setExpanded(!expanded)
+        }}>{t(expanded ? 'line.collapse' : 'line.expand')}</button>}
+      </div>
     </div>
   )
-}
+})

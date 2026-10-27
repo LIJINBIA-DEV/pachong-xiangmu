@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useCrawlerStore } from '@/store/crawlerStore'
 import type { LogEntry } from '@/types/crawler'
+import { createLogBuffer } from '@/lib/logBuffer'
+
+const logBuffer = createLogBuffer((logs, session) => useCrawlerStore.getState().receiveLogs(logs, session))
 
 // 模块级单例，确保全局只有一个 WebSocket 连接
 let globalWs: WebSocket | null = null
@@ -8,14 +11,6 @@ let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let connectionCount = 0  // 跟踪连接使用者数量
 
 export function useLogWebSocket() {
-  const addLog = useCrawlerStore((state) => state.addLog)
-  const addLogRef = useRef(addLog)
-
-  // 保持 addLog 引用最新
-  useEffect(() => {
-    addLogRef.current = addLog
-  }, [addLog])
-
   useEffect(() => {
     connectionCount++
 
@@ -53,9 +48,11 @@ export function useLogWebSocket() {
         }
 
         try {
-          const log: LogEntry = JSON.parse(event.data)
-          if (log.id && log.message) {
-            addLogRef.current(log)
+          const message = JSON.parse(event.data)
+          if (message.type === 'log_snapshot' && Array.isArray(message.logs)) {
+            logBuffer.push(message.logs, message.session_id)
+          } else if (message.id && message.message) {
+            logBuffer.push([message as LogEntry], message.session_id)
           }
         } catch (e) {
           console.warn('Failed to parse WebSocket message:', event.data)
@@ -64,6 +61,7 @@ export function useLogWebSocket() {
 
       ws.onclose = () => {
         if (globalWs !== ws) return
+        logBuffer.flush()
         console.log('WebSocket disconnected')
         globalWs = null
         // 只在还有使用者时才重连
@@ -94,6 +92,7 @@ export function useLogWebSocket() {
 
       // 只在没有使用者时才断开连接
       if (connectionCount === 0) {
+        logBuffer.flush()
         if (globalReconnectTimer) {
           clearTimeout(globalReconnectTimer)
           globalReconnectTimer = null

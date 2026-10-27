@@ -43,6 +43,7 @@ export function SupplementPanel({ file, completed, disabled, onFinished }: { fil
       void client.invalidateQueries({ queryKey: ['manualReview', file] })
       void client.invalidateQueries({ queryKey: ['dataBrowse', file] })
       void client.invalidateQueries({ queryKey: ['dataFiles'] })
+      void client.invalidateQueries({ queryKey: ['collectionTasks'] })
       callback.current()
     }
   }, [plan, status, file, client])

@@ -11,7 +11,7 @@ from openpyxl.styles import Alignment
 from api.services.data_browser import load_review_dataset, text
 from api.services.manual_review import annotations, image_download_problem, note_key
 from api.services.review_export import export_review, _platform, TIMEZONE
-from image_subject import local_image_path
+from api.services.data_browser import local_image_path
 
 MAPPING_HEADERS = ['审核结果编号', '平台', '帖子 ID', '原图片名', '包内相对路径', '导出状态']
 
@@ -42,8 +42,7 @@ def build_package(root, path, output, cancelled, progress):
     mapping = book.create_sheet('图片对应表')
     mapping.append(MAPPING_HEADERS)
     counts.update(images=0, missing=0, no_images=0)
-    selected = sum(sum(e['images'].get(i['key']) == 'qualified' for i in e['review_images'])
-                   for n in retained for e in [review['entries'][note_key(n)]])
+    selected = sum(len(review['entries'][note_key(n)]['review_images']) for n in retained)
     progress(0, selected)
     used, packed = {}, {}
     processed = 0
@@ -53,7 +52,7 @@ def build_package(root, path, output, cancelled, progress):
                 if cancelled.is_set():
                     raise ValueError('review_export_cancelled')
                 entry = review['entries'][note_key(note)]
-                approved = [i for i in entry['review_images'] if entry['images'].get(i['key']) == 'qualified']
+                approved = entry['review_images']
                 platform, nid = _platform(note, path), text(note.get('note_id') or note.get('aweme_id'))
                 success = 0
                 for image in approved:
@@ -104,7 +103,7 @@ def build_package(root, path, output, cancelled, progress):
                 if not success:
                     counts['no_images'] += 1
                     if not approved:
-                        mapping.append([index, platform, nid, '', '', '无可导出合格图片'])
+                        mapping.append([index, platform, nid, '', '', '无可导出图片'])
             mapping.freeze_panes = 'A2'
             mapping.auto_filter.ref = mapping.dimensions
             for row in mapping:
@@ -125,11 +124,11 @@ def build_package(root, path, output, cancelled, progress):
                 '导出时间：' + datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M:%S'),
                 '结果范围：' + ('部分结果' if counts['pending'] or counts['missing'] else '当前已保留结果'),
                 f"保留帖子：{counts['retained']}", f"已打包原图：{counts['images']}",
-                f"待审核帖子：{counts['pending']}", f"合格图片缺失：{counts['missing']}",
-                f"无可导出合格图片的保留帖子：{counts['no_images']}",
+                f"待审核帖子：{counts['pending']}", f"配图未打包：{counts['missing']}",
+                f"无可导出图片的保留帖子：{counts['no_images']}",
                 '具体图片路径和缺失原因请查看 Excel 的“图片对应表”。',
-                '重复引用共用包内原图；不合格或未标记图片不属于缺失图片。',
-                '导出不修改原帖、审核标记及识别缓存，不重新识别或补下载。',
+                '重复引用共用包内原图；配图未下载时仍导出帖子文字，并在对应表说明。',
+                '导出不修改原帖或审核标记，不检测图片内容或补下载。',
             ])
             archive.writestr('导出说明.txt', description.encode('utf-8-sig'))
         return counts

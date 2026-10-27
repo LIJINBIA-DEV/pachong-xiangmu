@@ -1,7 +1,8 @@
+import type { AISettings, AISettingsInput, ContentSummaryInfo, ContentSummaryInput, ContentSummaryJob } from '@/types/contentSummary'
 import axios from 'axios'
-import type { BrowseResponse, ManualReviewResponse, ReviewDecision, AccountDecision, SupplementPlan, ImageSubjectStatus, ImageSubjectSettings, CollectionLogsResponse } from '@/types/dataBrowser'
+import type { BrowseResponse, ManualReviewResponse, ReviewDecision, AccountDecision, SupplementPlan, CollectionLogsResponse } from '@/types/dataBrowser'
 import type { CrawlerConfig as StartConfig } from '@/types/crawler'
-import type { DashboardSnapshot, DashboardPeriod } from '@/types/dashboard'
+import type { CollectionProgress, DashboardSnapshot, DashboardPeriod } from '@/types/dashboard'
 
 const api = axios.create({
   baseURL: '/api',
@@ -18,6 +19,9 @@ export interface CrawlerConfig {
   crawler_type: string
   keywords: string
   start_page: number
+  publish_time_range?: 'all' | 'week' | 'day' | 'month' | 'custom'
+  publish_start_date?: string
+  publish_end_date?: string
   max_notes_count: number | null
   enable_comments: boolean
   enable_sub_comments: boolean
@@ -28,6 +32,7 @@ export interface CrawlerConfig {
 }
 
 export interface CrawlerStatus {
+  stage?: 'idle' | 'waiting_login' | 'starting' | 'running'
   status: 'idle' | 'running' | 'stopping' | 'error'
   platform: string | null
   crawler_type: string | null
@@ -36,6 +41,7 @@ export interface CrawlerStatus {
 }
 
 export interface LogEntry {
+  session_id?: string | null
   id: number
   timestamp: string
   level: 'info' | 'warning' | 'error' | 'success' | 'debug'
@@ -49,6 +55,9 @@ export interface DataFile {
   modified_at: number
   record_count: number | null
   type: string
+  file_kind?: 'collection' | 'semantic' | null
+  retained_count?: number | null
+  review_count?: number | null
   review_main?: string | null
 }
 
@@ -63,10 +72,25 @@ export interface ReviewExportJob {
   filename: string
 }
 
+export interface CollectionTask {
+  id: string
+  title: string
+  platform: string
+  primary_file: string
+  files: DataFile[]
+  modified_at: number
+  started_at: string | null
+  status: string
+  counts: Record<string, number> | null
+  rounds: number
+}
+
 export interface FilePreviewResponse {
   data: Record<string, unknown>[]
   total: number
   columns?: string[]
+  sheets?: string[]
+  sheet?: string
 }
 
 export interface Platform {
@@ -127,14 +151,17 @@ export interface WeiboLoginStatus {
   busy: boolean
   supported: boolean
   saved_session: boolean
+  local_browser?: boolean
   desktop_available?: boolean
   desktop_port?: number
 }
 
 // API functions
 export const crawlerApi = {
+  getSemanticSettings: () => api.get<{ key_configured: boolean }>('/crawler/semantic-settings'),
+  saveSemanticSettings: (input: { api_key?: string; clear_key?: boolean }) => api.put<{ key_configured: boolean }>('/crawler/semantic-settings', input),
   getQRLogin: (platform: 'wb' | 'xhs') => api.get<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`),
-  startQRLogin: (platform: 'wb' | 'xhs', refresh = false) => api.post<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`, { refresh, login_environment: 'server' }),
+  startQRLogin: (platform: 'wb' | 'xhs', refresh = false, loginEnvironment: StartConfig['login_environment'] = 'auto') => api.post<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`, { refresh, login_environment: loginEnvironment }),
   cancelQRLogin: (platform: 'wb' | 'xhs') => api.delete<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`),
   getWeiboLogin: () => api.get<WeiboLoginStatus>('/crawler/weibo-login'),
   startWeiboLogin: (refresh = false) => api.post<WeiboLoginStatus>('/crawler/weibo-login', { refresh }),
@@ -148,12 +175,16 @@ export const crawlerApi = {
 }
 
 export const dataApi = {
+  getAISettings: () => api.get<AISettings>('/data/ai-settings'),
+  saveAISettings: (input: AISettingsInput) => api.put<AISettings>('/data/ai-settings', input),
+  getContentSummary: (file: string) => api.get<ContentSummaryInfo>('/data/content-summary', { params: { file } }),
+  generateContentSummary: (input: ContentSummaryInput) => api.post<ContentSummaryJob>('/data/content-summary', input),
+  getContentSummaryDownloadUrl: (file: string, identity: string) => `/api/data/content-summary/${identity}/download?${new URLSearchParams({ file })}`,
+  getTasks: () => api.get<{ tasks: CollectionTask[] }>('/data/tasks'),
+  getPostExportUrl: (file: string, status: string) => `/api/data/export?${new URLSearchParams({ file, status })}`,
+  getCollectionProgress: () => api.get<CollectionProgress>('/dashboard/progress'),
   getDashboard: (period: DashboardPeriod = 'task', start?: string, end?: string) => api.get<DashboardSnapshot>('/dashboard', { params: { period, start, end } }),
-  getImageSettings: () => api.get<ImageSubjectSettings>('/data/image-subject/settings'),
-  saveImageSettings: (provider: ImageSubjectSettings['provider'], api_key?: string, clear_key = false) => api.put<ImageSubjectSettings>('/data/image-subject/settings', { provider, api_key, clear_key }),
   getCollectionLogs: (file: string) => api.get<CollectionLogsResponse>('/data/collection-logs', { params: { file } }),
-  getImageSubject: (file: string) => api.get<ImageSubjectStatus>('/data/image-subject', { params: { file } }),
-  recognizeImages: (file: string, force = false) => api.post<ImageSubjectStatus>('/data/image-subject', { file, force }),
   getSupplement: (file: string) => api.get<SupplementPlan>('/data/supplement', { params: { file } }),
   supplement: (file: string, target?: number, config?: StartConfig, api_key?: string, cookies?: string) => api.post<SupplementPlan>('/data/supplement', { file, target, config, api_key, cookies }),
   getTrash: () => api.get<{ files: TrashFile[] }>('/data/trash'),
@@ -171,8 +202,8 @@ export const dataApi = {
     api.get<BrowseResponse>('/data/browse', { params: { file, offset, limit, search, status }, signal }),
   getFiles: (platform?: string, fileType?: string) =>
     api.get<{ files: DataFile[] }>('/data/files', { params: { platform, file_type: fileType } }),
-  getFileContent: (path: string, limit = 100) =>
-    api.get<FilePreviewResponse>('/data/files/' + path, { params: { preview: true, limit } }),
+  getFileContent: (path: string, limit = 100, sheet?: string) =>
+    api.get<FilePreviewResponse>('/data/files/' + path, { params: { preview: true, limit, sheet } }),
   getStats: () => api.get('/data/stats'),
   getDownloadUrl: (path: string) => `/api/data/download/${path}`,
 }

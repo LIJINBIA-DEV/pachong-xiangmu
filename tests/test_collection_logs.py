@@ -96,3 +96,23 @@ def test_display_page_is_last_request_not_next_resume_cursor(history):
         'diagnostics': {'checked_page': 5, 'pages_checked': 5}})
     item = next(item for item in collection_logs(root, path)['entries'] if item['keyword'] == '萌 公园')
     assert item['page'] == 5
+
+
+def test_rich_logs_record_manual_actions_and_real_round_times(history):
+    from api.services.manual_review import update_annotation
+    root, path, task, run = history
+    path.write_text(json.dumps([{'note_id': '1', 'source_keyword': '萌 公园', 'content': '内容'}]), encoding='utf-8')
+    finish_run(run, 'completed')
+    update_annotation(root, path, '1:萌 公园', 'post', 'qualified')
+    update_annotation(root, path, '1:萌 公园', 'post', None)
+    result = collection_logs(root, path)
+    assert result['overview']['saved'] == 1
+    assert result['overview']['target'] == 4
+    assert result['rounds'][0]['elapsed_seconds'] >= 0
+    kinds = [item['kind'] for item in result['timeline']]
+    assert 'run_started' in kinds and 'run_finished' in kinds
+    edits = [item for item in result['timeline'] if item['kind'] == 'review_post']
+    assert [item['decision'] for item in edits] == [None, 'qualified']
+    assert all(item['post_id'] == '1' for item in edits)
+    serialized = json.dumps(result)
+    assert 'semantic_api_key' not in serialized and 'cookies' not in serialized

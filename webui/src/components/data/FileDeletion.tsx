@@ -19,7 +19,7 @@ function errorKey(error: unknown) {
 function useFileRefresh() {
   const client = useQueryClient()
   return async () => {
-    await Promise.all(['dataFiles', 'dataTrash', 'dataBrowse', 'manualReview', 'supplement'].map((key) => client.invalidateQueries({ queryKey: [key] })))
+    await Promise.all(['dataFiles', 'collectionTasks', 'dataTrash', 'dataBrowse', 'manualReview', 'supplement'].map((key) => client.invalidateQueries({ queryKey: [key] })))
   }
 }
 

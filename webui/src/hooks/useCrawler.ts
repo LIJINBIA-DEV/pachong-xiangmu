@@ -7,7 +7,6 @@ import axios from 'axios'
 
 export function useCrawlerStatus() {
   const queryClient = useQueryClient()
-  const setStatus = useCrawlerStore((state) => state.setStatus)
   const setRunningInfo = useCrawlerStore((state) => state.setRunningInfo)
 
   return useQuery({
@@ -15,10 +14,11 @@ export function useCrawlerStatus() {
     queryFn: async () => {
       const { data } = await crawlerApi.getStatus()
       const previous = useCrawlerStore.getState().status
-      setStatus(data.status)
+      useCrawlerStore.setState({ status: data.status, stage: data.stage ?? (data.status === 'running' ? 'running' : 'idle') })
       setRunningInfo(data.platform, data.crawler_type, data.started_at)
       if ((previous === 'running' || previous === 'stopping') && data.status !== 'running' && data.status !== 'stopping') {
         void queryClient.invalidateQueries({ queryKey: ['dataFiles'] })
+        void queryClient.invalidateQueries({ queryKey: ['collectionTasks'] })
         void queryClient.invalidateQueries({ queryKey: ['dataBrowse'] })
           void queryClient.invalidateQueries({ queryKey: ['manualReview'] })
           void queryClient.invalidateQueries({ queryKey: ['imageSubject'] })
@@ -43,7 +43,7 @@ export function useStartCrawler() {
       setStatus('running')
     },
     onSuccess: () => {
-      toast.success('Crawler started successfully')
+      toast.success('正在准备采集，登录验证通过后开始运行')
       queryClient.invalidateQueries({ queryKey: ['crawlerStatus'] })
     },
     onError: (error: Error) => {
@@ -68,6 +68,7 @@ export function useStopCrawler() {
       setStatus('idle')
       queryClient.invalidateQueries({ queryKey: ['crawlerStatus'] })
       queryClient.invalidateQueries({ queryKey: ['dataFiles'] })
+      queryClient.invalidateQueries({ queryKey: ['collectionTasks'] })
       queryClient.invalidateQueries({ queryKey: ['dataBrowse'] })
       queryClient.invalidateQueries({ queryKey: ['crawlerLogs'] })
     },

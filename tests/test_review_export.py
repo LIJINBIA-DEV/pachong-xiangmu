@@ -33,6 +33,7 @@ def collection(tmp_path, monkeypatch):
     media = tmp_path / 'wb/media/5351872649235817'
     Image.new('RGB', (300, 200), 'red').save(media / 'bad.jpg')
     key = '5351872649235817:可爱 公园'
+    update_annotation(tmp_path, path, key, 'post', 'qualified')
     update_annotation(tmp_path, path, key, 'image', 'qualified', 'good.jpg')
     update_annotation(tmp_path, path, key, 'image', 'unqualified', 'bad.jpg')
     update_annotation(tmp_path, path, 'excluded:', 'post', 'unqualified')
@@ -47,7 +48,8 @@ def test_export_only_retained_posts_and_approved_pictures_preserves_source(colle
     state = read_state(root, path)
     response = client.post('/api/data/review/export', json={'file':'weibo/posts.json'})
     assert response.status_code == 200
-    assert response.headers['x-review-retained'] == response.headers['x-review-images'] == '1'
+    assert response.headers['x-review-retained'] == '1'
+    assert response.headers['x-review-images'] == '2'
     assert response.headers['x-review-pending'] == '1'
     assert 'filename*=UTF-8' in response.headers['content-disposition']
     book = load_workbook(BytesIO(response.content))
@@ -81,16 +83,16 @@ def test_missing_and_corrupt_images_default_rejected_but_human_marks_survive(col
     (media / 'bad.jpg').write_bytes(b'corrupt download')
     update_annotation(root, path, key, 'image', None, 'bad.jpg')
     entry = annotations(root, path)['entries'][key]
-    assert entry['images']['missing.jpg'] == 'unqualified'
-    assert next(i for i in entry['review_images'] if i['key']=='missing.jpg')['decision_source'] == 'download'
+    assert 'missing.jpg' not in entry['images']
+    assert next(i for i in entry['review_images'] if i['key']=='missing.jpg')['decision_source'] is None
     assert entry['images']['bad.jpg'] is None  # Explicit human clear is preserved.
-    assert next(i for i in entry['review_images'] if i['key']=='bad.jpg')['download_problem'] == 'download_failed'
+    assert next(i for i in entry['review_images'] if i['key']=='bad.jpg')['download_problem'] is None
     # Missing-only posts receive an automatic excluded conclusion.
     notes=json.loads(path.read_text(encoding='utf-8'))
     notes.append({'note_id':'missing-only','image_names':'cover.jpg'})
     path.write_text(json.dumps(notes),encoding='utf-8')
     entry=annotations(root,path)['entries']['missing-only:']
-    assert entry['decision']=='unqualified' and entry['images']['cover.jpg']=='unqualified'
+    assert entry['decision'] is None and entry['images'] == {}
     Image.new('RGB',(32,32)).save(media/'missing.jpg')
     entry=annotations(root,path)['entries'][key]
     assert 'missing.jpg' not in entry['images']  # Later download restores pending recognition.

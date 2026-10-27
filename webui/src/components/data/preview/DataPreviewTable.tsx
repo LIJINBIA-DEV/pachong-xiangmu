@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search } from 'lucide-react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 
 interface DataPreviewTableProps {
@@ -15,9 +14,9 @@ export function DataPreviewTable({ data, columns: propColumns }: DataPreviewTabl
 
   // 自动获取列名（JSON 可能没有 columns）
   const columns = useMemo(() => {
-    if (propColumns && propColumns.length > 0) return propColumns
-    if (data.length === 0) return []
-    return Object.keys(data[0])
+    const available = propColumns?.length ? propColumns : data.length ? Object.keys(data[0]) : []
+    const preferred = ['title', 'desc', 'content', 'nickname', 'source_keyword', 'liked_count', 'comment_count', 'semantic_result', 'semantic_evidence']
+    return [...preferred.filter((name) => available.includes(name)), ...available.filter((name) => !preferred.includes(name))]
   }, [data, propColumns])
 
   // 过滤数据
@@ -54,7 +53,7 @@ export function DataPreviewTable({ data, columns: propColumns }: DataPreviewTabl
       </div>
 
       {/* 表格 */}
-      <ScrollArea className="flex-1 border border-cyber-border-DEFAULT rounded-lg">
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-cyber-border-DEFAULT">
         <div className="min-w-full">
           <table className="w-full text-xs font-mono">
             <thead className="sticky top-0 bg-cyber-bg-tertiary border-b border-cyber-border-DEFAULT">
@@ -71,6 +70,7 @@ export function DataPreviewTable({ data, columns: propColumns }: DataPreviewTabl
               </tr>
             </thead>
             <tbody>
+              {!filteredData.length && <tr><td colSpan={columns.length + 1} className="p-6 text-center text-cyber-text-secondary">{t('preview.empty')}</td></tr>}
               {filteredData.map((row, idx) => (
                 <tr
                   key={idx}
@@ -91,7 +91,7 @@ export function DataPreviewTable({ data, columns: propColumns }: DataPreviewTabl
             </tbody>
           </table>
         </div>
-      </ScrollArea>
+      </div>
 
       {/* 过滤结果提示 */}
       {searchTerm && (

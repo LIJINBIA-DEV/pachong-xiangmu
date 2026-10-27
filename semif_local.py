@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 import httpx
-from semantic_rules import relation_instructions
+from semantic_rules import evaluation_instructions
 
 
 MODEL_ID = "semif-qwen3.5-4b-q4"
@@ -93,9 +93,9 @@ class SemIfLocalReviewer:
         first, second = pair
         user = (
             f"State:\n{text}\n\nQuestion:\n"
-            f"keyword1={first}; keyword2={second}。" + relation_instructions(second)
+            f"keyword1={first}; keyword2={second}。" + evaluation_instructions()
             + "\n\nAllowed options:\n"
-            f"A. 是，明确用“{first}”评价“{second}”对应范围内允许的空间对象。\n"
+            f"A. 是，明确用“{first}”评价“{second}”这个对象。\n"
             "B. 否，形容其他对象、否定描述或没有直接描述关系。\n"
             "C. 无法确定，指代不清或上下文不足。\n\n"
             "Reply with exactly one option letter from: A, B, C."
