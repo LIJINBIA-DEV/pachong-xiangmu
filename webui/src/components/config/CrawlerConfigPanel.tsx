@@ -82,7 +82,7 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
   const semanticCommentSampling = semanticSupported && config.semantic_filter
   async function handleStart() {
     if (saveKey.isPending || isTestingSemanticKey || isBusy || isDisabled || missingKeywords || invalidNoteCount || invalidTimeRange || loginPending) return
-    if (semanticSupported && config.semantic_filter && config.semantic_model === 'jev-1.13.0' && semanticApiKey.trim() && !await persistSemanticKey()) return
+    if (semanticSupported && config.semantic_filter && !config.semantic_model.startsWith('semif') && semanticApiKey.trim() && !await persistSemanticKey()) return
     startCrawler({ ...config, login_environment: loginEnvironment, headless: loginEnvironment === 'server', max_comments_count: semanticCommentSampling ? 5 : undefined,
       publish_time_range: config.crawler_type === 'search' ? config.publish_time_range : 'all',
       publish_start_date: config.crawler_type === 'search' && config.publish_time_range === 'custom' ? config.publish_start_date : undefined,
@@ -136,9 +136,9 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
         </section>}
         {config.crawler_type === 'search' ? <KeywordSearchInput cards={collectionTopics} onChange={updateCollectionTopics} scene={evaluationOnly} target={config.max_notes_count} disabled={isDisabled} controls={<div className="topic-filter-settings">
           <div className="topic-filter-controls"><Choice label={t('field.semanticFilter')} checked={config.semantic_filter} disabled={isDisabled || !semanticSupported || !config.enable_comments}
-            onChange={(value) => updateConfig({ semantic_filter: value, ...(value && config.semantic_rule !== 'scene' ? { semantic_model: 'jev-1.13.0' } : {}) })} />
+            onChange={(value) => updateConfig({ semantic_filter: value })} />
             {config.semantic_filter && <Choice label={t('topics.evaluationOnly')} checked={evaluationOnly} disabled={semanticLocked}
-              onChange={value => updateConfig({ semantic_rule: value ? 'scene' : 'topic', ...(!value ? { semantic_model: 'jev-1.13.0' } : {}) })} />}</div>
+              onChange={value => updateConfig({ semantic_rule: value ? 'scene' : 'topic' })} />}</div>
           <p className="config-option-hint">{t(!config.enable_comments ? 'topics.commentsRequired' : !config.semantic_filter ? 'topics.filterOffHint' : evaluationOnly ? 'topics.evaluationOnlyHint' : 'topics.filterHint')}</p>
         </div>} /> : <div className="config-id-input">
           <Field label={t(config.crawler_type === 'detail' ? 'field.specifiedIds' : 'field.creatorIds')}>
@@ -155,12 +155,12 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
         <div className="config-output-fields">
           <Field label={t('field.saveFormat')}><ConfigSelect label={t('field.saveFormat')} value="excel" onChange={() => updateConfig({ save_option: 'excel' })} disabled={isDisabled} items={[{ value: 'excel', label: 'Excel File' }]} /></Field>
           <Field label={t('field.semanticModel')}><ConfigSelect label={t('field.semanticModel')} value={config.semantic_model} disabled={semanticLocked}
-            items={options?.semantic_models.filter((item) => config.semantic_rule !== 'topic' || item.value === 'jev-1.13.0') || [{ value: 'jev-1.13.0', label: 'Jev 1.13 (TypeSafe API)' }]} onChange={(value) => { updateConfig({ semantic_model: value }); setSemanticKeyCheck(null) }} /></Field>
+            items={options?.semantic_models || [{ value: 'jev-1.13.0', label: 'Jev 1.13 (TypeSafe API)' }, { value: 'openai-compatible', label: '通用大模型 (DeepSeek / 通义千问等)' }]} onChange={(value) => { updateConfig({ semantic_model: value }); setSemanticKeyCheck(null) }} /></Field>
         </div>
         <div className="config-semantic-key"><Field label={t('field.semanticApiKey')}><Input type="password" name="typesafe-api-key" value={semanticApiKey} autoComplete="off" spellCheck={false}
-          disabled={semanticLocked || saveKey.isPending || isTestingSemanticKey || config.semantic_model !== 'jev-1.13.0'} placeholder={t(semanticSettings.data?.key_configured ? 'field.semanticKeySavedPlaceholder' : 'field.semanticApiKeyPlaceholder')}
+          disabled={semanticLocked || saveKey.isPending || isTestingSemanticKey || config.semantic_model.startsWith('semif')} placeholder={t(semanticSettings.data?.key_configured ? 'field.semanticKeySavedPlaceholder' : 'field.semanticApiKeyPlaceholder')}
           onChange={(event) => { setSemanticApiKey(event.target.value); setSemanticKeyCheck(null); saveKey.reset() }} /></Field>
-          <Button type="button" variant="outline" onClick={() => { void handleTestSemanticKey() }} disabled={semanticLocked || saveKey.isPending || isTestingSemanticKey || config.semantic_model !== 'jev-1.13.0'}>{t(isTestingSemanticKey ? 'field.semanticKeyTesting' : 'field.semanticKeyTest')}</Button>
+          <Button type="button" variant="outline" onClick={() => { void handleTestSemanticKey() }} disabled={semanticLocked || saveKey.isPending || isTestingSemanticKey || config.semantic_model.startsWith('semif')}>{t(isTestingSemanticKey ? 'field.semanticKeyTesting' : 'field.semanticKeyTest')}</Button>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2" aria-label={t('field.semanticKeyStorage')}>
           <Button type="button" size="sm" variant="outline" onClick={() => { void persistSemanticKey() }} disabled={isDisabled || saveKey.isPending || isTestingSemanticKey || !semanticApiKey.trim()}>{t(saveKey.isPending ? 'field.semanticKeySaving' : 'field.semanticKeySave')}</Button>
@@ -172,9 +172,9 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
         <div className="config-semantic-status" aria-live="polite">
           <p>{t('field.targetCountHint')}</p>
           {semanticKeyCheck && <p role="status" className={semanticKeyCheck.ok ? 'config-success' : 'config-error'}>{t(`field.semanticKeyCheckResult.${semanticKeyCheck.reason}`, { status: semanticKeyCheck.http_status ?? '' })}</p>}
-          {config.semantic_filter && config.semantic_model !== 'jev-1.13.0' && <p>{t('field.semanticLocalHint')}</p>}
+          {config.semantic_filter && config.semantic_model.startsWith('semif') && <p>{t('field.semanticLocalHint')}</p>}
         </div>
-        <JevProxySettings apiKey={semanticApiKey} disabled={isDisabled} onRoutingChange={() => setSemanticKeyCheck(null)} />
+        {config.semantic_model.startsWith('jev') && <JevProxySettings apiKey={semanticApiKey} disabled={isDisabled} onRoutingChange={() => setSemanticKeyCheck(null)} />}
         <Button type="button" variant="outline" className="config-rules-button" onClick={() => setHelp('rules')}>{t('help.viewRules')}</Button>
       </section>
       <section className="config-card config-login">

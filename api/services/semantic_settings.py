@@ -22,7 +22,10 @@ def runtime_key(root):
         if path.is_symlink():
             raise ValueError('semantic_settings_storage_failed')
         if not path.exists():
-            return os.environ.get('TYPESAFE_API_KEY', '').strip()
+            return (os.environ.get('MEDIACRAWLER_SEMANTIC_API_KEY') or
+                    os.environ.get('TYPESAFE_API_KEY') or
+                    os.environ.get('OPENAI_API_KEY') or
+                    os.environ.get('AI_API_KEY', '')).strip()
         saved = json.loads(path.read_text(encoding='utf-8'))
         value = saved.get('encrypted_key')
         return cipher(root).decrypt(value.encode()).decode() if value else ''

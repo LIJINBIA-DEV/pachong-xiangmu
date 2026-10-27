@@ -24,7 +24,11 @@ from semantic_rules import RULE_VERSION, OBJECT_TYPES, RELATIONS, EVALUATION_RUL
 from weibo_account_filter import account_record_reason, blocklist_signature
 from semantic_quality import Evidence, evidence_records, evaluation_problem, is_general_evaluation, duplicate_kind, explicit_jev_rejection, keyword_pair_present
 
-SUPPORTED_MODELS = {"jev-1.13.0": "Jev 1.13 (TypeSafe API)", SEMIF_MODEL: "SemIf / Qwen3.5-4B Q4 (本地)"}
+SUPPORTED_MODELS = {
+    "jev-1.13.0": "Jev 1.13 (TypeSafe API)",
+    "openai-compatible": "通用大模型 (DeepSeek / 通义千问 / OpenAI等)",
+    SEMIF_MODEL: "SemIf / Qwen3.5-4B Q4 (本地)",
+}
 MODEL = "jev-1.13.0"
 # A fixed 100-call ceiling used to abort searches before their target was met.
 # Operators may still set explicit budgets through the environment.
@@ -179,8 +183,9 @@ class JevReviewer:
 class EvaluationJevReviewer(JevReviewer):
     """General evaluation relation, grounded in text without object/image gates."""
 
-    def __init__(self, api_key, client, model=MODEL):
-        super().__init__(api_key, client, model, selection_mode='strict')
+    def __init__(self, api_key, client, model=MODEL, selection_mode=None):
+        mode = selection_mode or os.environ.get('MEDIACRAWLER_SEMANTIC_SELECTION_MODE', 'candidate')
+        super().__init__(api_key, client, model, selection_mode=mode)
 
     async def decide(self, pair, text, comment_ids=(), records=None):
         records = records if records is not None else evidence_records([('content', text)])
@@ -235,8 +240,9 @@ class EvaluationJevReviewer(JevReviewer):
 class TopicJevReviewer(JevReviewer):
     """Judge the whole search topic, with evidence selected from genuine text."""
 
-    def __init__(self, api_key, client, model=MODEL):
-        super().__init__(api_key, client, model, selection_mode='strict')
+    def __init__(self, api_key, client, model=MODEL, selection_mode=None):
+        mode = selection_mode or os.environ.get('MEDIACRAWLER_SEMANTIC_SELECTION_MODE', 'strict')
+        super().__init__(api_key, client, model, selection_mode=mode)
 
     async def decide(self, pair, text, comment_ids=(), records=None):
         records = records if records is not None else evidence_records([('content', text)])
@@ -273,41 +279,166 @@ class TopicJevReviewer(JevReviewer):
         return decision
 
 
-async def check_jev_connection(
+class OpenAISemanticReviewer:
+    """Universal semantic reviewer supporting any OpenAI-compatible API (DeepSeek, Qwen, ChatGPT, Ollama, etc.)."""
+
+    def __init__(
+        self, api_key: str, client: httpx.AsyncClient | None = None,
+        base_url: str | None = None, model: str = "deepseek-chat",
+        rule: str = "topic", selection_mode: str | None = None,
+    ):
+        self.api_key = api_key or os.environ.get("MEDIACRAWLER_SEMANTIC_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("AI_API_KEY") or os.environ.get("TYPESAFE_API_KEY", "")
+        raw_base = (base_url or os.environ.get("MEDIACRAWLER_SEMANTIC_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or os.environ.get("AI_BASE_URL") or "https://api.deepseek.com").rstrip("/")
+        if not raw_base.endswith("/chat/completions"):
+            self.endpoint = f"{raw_base}/chat/completions"
+        else:
+            self.endpoint = raw_base
+        self.model = model
+        self.rule = rule
+        self.client = client or httpx.AsyncClient(timeout=30)
+        self.selection_mode = selection_mode or os.environ.get('MEDIACRAWLER_SEMANTIC_SELECTION_MODE', 'candidate')
+        self.calls = 0
+        self.input_tokens = 0
+        self.cache: dict[Any, Decision] = {}
+        self.failure: str | None = None
+
+    async def decide(self, pair: tuple[str, str], text: str, comment_ids=(), records=None) -> Decision:
+        cache_key = (pair, text, self.rule)
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        if len(text) > MAX_TEXT_CHARS:
+            return Decision('unavailable', reason='text_too_long')
+
+        self.calls += 1
+        if self.rule == "topic":
+            topic = " ".join(part for part in pair if part).strip()
+            prompt = (
+                f"你是一个文本主题相关性分析专家。请判断以下文本是否在实质讨论检索主题：“{topic}”。\n"
+                f"规则说明：\n"
+                f"1. 实质讨论该主题的组成部分、具体事件、下属机构、商家或具体情况，均视为相关（keep）。\n"
+                f"2. 仅提及但内容完全无关，或仅无意义堆砌标签，才判定为无关（reject）。\n"
+                f"3. 无法确认或证据不足时判定为 review。\n\n"
+                f"【待判断文本】：\n{text}\n\n"
+                f"请输出严格的 JSON 格式（不要包含 markdown 代码块或其他字符）：\n"
+                f'{{"choice": "keep"|"reject"|"review", "confidence": 0.85, "reason": "简述原因", "evidence_text": "支持结论的句子"}}\n'
+            )
+        else:
+            evaluation, target = pair[0], pair[1]
+            prompt = (
+                f"你是一个文本评价关系分析专家。请判断以下文本中对“{target}”的评价是否表达了“{evaluation}”的含义。\n"
+                f"规则说明：\n"
+                f"1. 若评价对象为地点/实体，评价该实体下属的具体商家、机构、事件、服务或景点（例如避雷该城市的某家店/中介），均视为对该对象的相关评价（keep）。\n"
+                f"2. 评价完全无关或否定该评价时，判定为 reject。\n"
+                f"3. 无法确认或证据不足时判定为 review。\n\n"
+                f"【待判断文本】：\n{text}\n\n"
+                f"请输出严格的 JSON 格式（不要包含 markdown 代码块或其他字符）：\n"
+                f'{{"choice": "keep"|"reject"|"review", "confidence": 0.85, "reason": "简述原因", "evidence_text": "表达评价的句子", "target_evidence_text": "提及对象的句子"}}\n'
+            )
+
+        model_name = self.model
+        if model_name in {"openai-compatible", "universal"}:
+            model_name = os.environ.get("AI_MODEL") or os.environ.get("OPENAI_MODEL") or "deepseek-chat"
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": "You are a precise data annotation assistant. Respond strictly in valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+        }
+
+        try:
+            resp = await self.client.post(self.endpoint, headers=headers, json=body, timeout=25)
+            resp.raise_for_status()
+            data = resp.json()
+            usage = data.get("usage", {})
+            self.input_tokens += int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+            raw_content = data["choices"][0]["message"]["content"].strip()
+            cleaned = re.sub(r"^```(?:json)?\s*", "", raw_content)
+            cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+            parsed = json.loads(cleaned)
+            choice = parsed.get("choice", "review")
+            if choice not in {"keep", "reject", "review"}:
+                choice = "review"
+            confidence = float(parsed.get("confidence", 0.85))
+            evidence_text = parsed.get("evidence_text")
+            target_evidence_text = parsed.get("target_evidence_text") or evidence_text
+            reason = parsed.get("reason")
+            decision = Decision(
+                choice=choice,
+                confidence=confidence,
+                reason=reason,
+                evidence_text=evidence_text,
+                target_evidence_text=target_evidence_text,
+                object_type="evaluation_target",
+                target_relation="describes_target",
+                original_model_choice=choice,
+            )
+            self.cache[cache_key] = decision
+            return decision
+        except Exception as e:
+            print(f"[Semantic] OpenAI-compatible API error: {e}", flush=True)
+            return Decision(choice="review", confidence=0.5, reason=str(e), original_model_choice="review")
+
+
+async def check_semantic_connection(
     api_key: str, model: str = MODEL, client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
-    """Make one real model request and report a sanitized connection diagnosis."""
-    if model != MODEL:
-        raise ValueError(f"Unsupported semantic model: {model}")
+    """Check connection for any supported model (Jev, OpenAI-compatible, Local SemIf)."""
+    if model.startswith("semif"):
+        from semif_local import local_model_ready
+        ready = local_model_ready()
+        return {"ok": ready, "reason": "usable" if ready else "model_not_found", "model": model}
     if not api_key:
         return {"ok": False, "reason": "missing_key"}
-    own_client = client is None
-    client = client or create_semantic_client(model)
-    try:
-        reviewer = JevReviewer(api_key, client, model, request_attempts=1)
-        await reviewer.decide(("可爱", "公园"), "这个公园好可爱")
-        return {"ok": True, "reason": "usable", "model": model}
-    except SemanticFilterError as exc:
-        cause = exc.__cause__
-        if isinstance(cause, httpx.HTTPStatusError):
-            status = cause.response.status_code
-            if status in (401, 403):
-                reason = "authentication_rejected"
-            elif status in (402, 429):
-                reason = "billing_or_rate_limit"
-            elif status >= 500:
-                reason = "provider_error"
-            else:
-                reason = "request_rejected"
-            return {"ok": False, "reason": reason, "http_status": status}
-        if isinstance(cause, httpx.TimeoutException):
-            return {"ok": False, "reason": "timeout"}
-        if isinstance(cause, httpx.RequestError):
-            return {"ok": False, "reason": "network_error"}
-        return {"ok": False, "reason": "invalid_response"}
-    finally:
-        if own_client:
-            await client.aclose()
+    if model.startswith("jev"):
+        own_client = client is None
+        client = client or create_semantic_client(model)
+        try:
+            reviewer = JevReviewer(api_key, client, model, request_attempts=1)
+            await reviewer.decide(("可爱", "公园"), "这个公园好可爱")
+            return {"ok": True, "reason": "usable", "model": model}
+        except SemanticFilterError as exc:
+            cause = exc.__cause__
+            if isinstance(cause, httpx.HTTPStatusError):
+                status = cause.response.status_code
+                if status in (401, 403):
+                    reason = "authentication_rejected"
+                elif status in (402, 429):
+                    reason = "billing_or_rate_limit"
+                elif status >= 500:
+                    reason = "provider_error"
+                else:
+                    reason = "request_rejected"
+                return {"ok": False, "reason": reason, "http_status": status}
+            if isinstance(cause, httpx.TimeoutException):
+                return {"ok": False, "reason": "timeout"}
+            if isinstance(cause, httpx.RequestError):
+                return {"ok": False, "reason": "network_error"}
+            return {"ok": False, "reason": "invalid_response"}
+        finally:
+            if own_client:
+                await client.aclose()
+    else:
+        own_client = client is None
+        client = client or httpx.AsyncClient(timeout=15)
+        try:
+            reviewer = OpenAISemanticReviewer(api_key, client, model=model)
+            res = await reviewer.decide(("测试", "公园"), "这个公园好可爱")
+            return {"ok": res.choice != "unavailable", "reason": "usable" if res.choice != "unavailable" else "connection_failed", "model": model}
+        except Exception:
+            return {"ok": False, "reason": "connection_failed", "model": model}
+        finally:
+            if own_client:
+                await client.aclose()
+
+
+check_jev_connection = check_semantic_connection
 
 
 @dataclass
@@ -394,12 +525,16 @@ class StreamingSemanticFilter:
         self._own_client = client is None
         self.client = client or create_semantic_client(model)
         self.semantic_rule = semantic_rule or os.environ.get('MEDIACRAWLER_SEMANTIC_RULE', 'scene')
-        if self.semantic_rule not in {'scene', 'topic'} or (self.semantic_rule == 'topic' and model != MODEL):
-            raise ValueError('Topic filtering requires Jev; semantic rule must be scene or topic')
+        if self.semantic_rule not in {'scene', 'topic'}:
+            raise ValueError('semantic rule must be scene or topic')
         self.rule_version = 'topic-relevance-v1' if self.semantic_rule == 'topic' else EVALUATION_RULE_VERSION
-        self.reviewer = (TopicJevReviewer(api_key, self.client, model) if self.semantic_rule == 'topic'
-                         else SemIfLocalReviewer(self.client) if model == SEMIF_MODEL
-                         else EvaluationJevReviewer(api_key, self.client, model))
+        if model.startswith("jev"):
+            self.reviewer = (TopicJevReviewer(api_key, self.client, model, selection_mode=selection_mode) if self.semantic_rule == 'topic'
+                             else EvaluationJevReviewer(api_key, self.client, model, selection_mode=selection_mode))
+        elif model.startswith("semif"):
+            self.reviewer = SemIfLocalReviewer(self.client)
+        else:
+            self.reviewer = OpenAISemanticReviewer(api_key, self.client, model=model, rule=self.semantic_rule, selection_mode=selection_mode)
         self.states: dict[tuple[str, str], LiveNote] = {}
         # Historical checkpoints are a cache, not this run's exported results.
         self.active_keys: set[tuple[str, str]] = set()
@@ -564,19 +699,14 @@ class StreamingSemanticFilter:
                 if decision.evidence_text and decision.target_evidence_text and (not state.uncertain or decision.choice in {'keep', 'review'}):
                     state.note['evaluation_evidence'] = decision.evidence_text
                     state.note['evaluation_target_evidence'] = decision.target_evidence_text
-            rejection = None
-            if isinstance(self.reviewer, JevReviewer):
-                rejection = explicit_jev_rejection(
-                    decision.choice, decision.object_type, original_choice=decision.original_model_choice,
-                    original_object_type=decision.original_object_type,
-                    verification_choice=decision.verification_choice, reason=decision.reason,
-                )
-            if not isinstance(self.reviewer, JevReviewer) and decision.choice == "keep":
-                decision.choice, decision.reason = "review", "local_model_evidence_unverified"
+            rejection = explicit_jev_rejection(
+                decision.choice, decision.object_type, original_choice=decision.original_model_choice,
+                original_object_type=decision.original_object_type,
+                verification_choice=decision.verification_choice, reason=decision.reason,
+            )
             if not rejection and not state.matched and (not state.uncertain or decision.choice in {"keep", "review"}):
-                if isinstance(self.reviewer, JevReviewer):
-                    state.note['jev_original_choice'] = decision.original_model_choice
-                    state.note['jev_original_object_type'] = decision.original_object_type
+                state.note['jev_original_choice'] = decision.original_model_choice
+                state.note['jev_original_object_type'] = decision.original_object_type
                 state.confidence = decision.confidence
                 state.evidence_source = decision.evidence_source
                 state.target_evidence_text = decision.target_evidence_text
@@ -606,7 +736,7 @@ class StreamingSemanticFilter:
                     state.target_evidence_text = decision.target_evidence_text
                     state.target_evidence_source = decision.target_evidence_source
                     state.quality_reason = decision.reason
-                    if isinstance(self.reviewer, JevReviewer) and self.reviewer.selection_mode == 'candidate':
+                    if getattr(self.reviewer, 'selection_mode', None) == 'candidate':
                         state.note['selection_origin'] = 'jev_initial_screen'
                         state.note['manual_review_required'] = True
                         state.note['jev_original_choice'] = decision.original_model_choice

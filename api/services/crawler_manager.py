@@ -137,13 +137,11 @@ class CrawlerManager:
                     raise ValueError("Semantic filtering requires Weibo/Xiaohongshu search with Excel output")
                 if config.semantic_model not in SUPPORTED_MODELS:
                     raise ValueError("Unsupported semantic model")
-                if config.semantic_rule == 'topic' and config.semantic_model != MODEL:
-                    raise ValueError('主题相关筛选目前需要选择 Jev 模型。')
                 from api.routers.data import data_root
                 from api.services.semantic_settings import runtime_key
                 api_key = (config.semantic_api_key.get_secret_value() if config.semantic_api_key else "") or runtime_key(data_root())
-                if config.semantic_model == MODEL and not api_key.strip():
-                    raise ValueError("Enter a TypeSafe API Key in the web form or set TYPESAFE_API_KEY on the server")
+                if config.semantic_model != SEMIF_MODEL and not api_key.strip():
+                    raise ValueError("请在配置中填写语义模型 API Key（或设置 TYPESAFE_API_KEY / OPENAI_API_KEY 环境变量）")
                 if config.semantic_model == SEMIF_MODEL and not local_model_ready():
                     raise ValueError("Local SemIf model or runtime is missing/incomplete; wait for the model download")
                 if not config.enable_comments:
@@ -225,6 +223,8 @@ class CrawlerManager:
                         "MEDIACRAWLER_SEMANTIC_RULE": config.semantic_rule,
                         "MEDIACRAWLER_KEYWORD_PAIRS": json.dumps(config.keyword_pairs, ensure_ascii=False),
                         "TYPESAFE_API_KEY": api_key if config.semantic_filter else os.environ.get("TYPESAFE_API_KEY", ""),
+                        "MEDIACRAWLER_SEMANTIC_API_KEY": api_key if config.semantic_filter else "",
+                        "OPENAI_API_KEY": api_key if config.semantic_filter else os.environ.get("OPENAI_API_KEY", ""),
                         "MEDIACRAWLER_COLLECTION_RUN": str(collection_run) if collection_run else '',
                         "MEDIACRAWLER_PUBLICATION_WINDOW": json.dumps(publication_window.as_dict()),
                         "MEDIACRAWLER_WEIBO_SEARCH_TYPE": task_config['weibo_search_type'],

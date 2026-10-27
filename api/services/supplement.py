@@ -42,7 +42,7 @@ def plan(root, path, manager):
         round_count = len(paths) + (0 if original_in_round else 1)
     config = task['config'] if task else None
     cache = manager.task_credentials.get(task['id'], {}) if task else {}
-    needs_key = bool(config and config.get('semantic_filter') and config.get('semantic_model') == 'jev-1.13.0'
+    needs_key = bool(config and config.get('semantic_filter') and config.get('semantic_model') != 'semif-qwen3.5-4b-q4'
                      and not cache.get('semantic_api_key') and not runtime_key(root))
     qr_mode = bool(config and config.get('login_type') == 'qrcode' and not cache.get('cookies'))
     qr_saved = bool(read_session(getattr(manager, '_project_root', Path(__file__).resolve().parents[2])))
