@@ -2,9 +2,10 @@
   "browse": {
     "reviewPolicyPassed": "Screening passed (previously review)",
     "userConfirmed": "Retained (manually confirmed)",
-    "jevPassed": "Jev screening passed",
+    "modelPassed": "Model screening passed",
+    "jevPassed": "Model screening passed",
     "manualReviewHint": "Retained as a candidate; final inclusion requires your manual review.",
-    "originalDecision": "Original Jev decision: {{choice}}",
+    "originalDecision": "Original model decision: {{choice}}",
     "modelChoice": {
       "keep": "Keep",
       "review": "Review",

@@ -40,12 +40,12 @@ function PostDetail({ post }: { post: BrowsePost }) {
       <header className="space-y-3">
         <h3 className="break-words text-xl font-semibold leading-relaxed text-cyber-text-primary">{post.title || t('browse.noTitle')}</h3>
         <div className="flex flex-wrap items-center gap-2 text-xs text-cyber-text-secondary">
-          <span className="rounded bg-cyber-bg-tertiary px-2 py-1">{t(post.status === 'matched' && post.selection_origin === 'user_confirmed' ? 'browse.userConfirmed' : post.status === 'matched' && post.selection_origin === 'review_policy' ? 'browse.reviewPolicyPassed' : post.status === 'matched' && post.selection_origin === 'jev_initial_screen' ? 'browse.jevPassed' : `browse.status.${post.status}`, { defaultValue: post.status })}</span>
+          <span className="rounded bg-cyber-bg-tertiary px-2 py-1">{t(post.status === 'matched' && post.selection_origin === 'user_confirmed' ? 'browse.userConfirmed' : post.status === 'matched' && post.selection_origin === 'review_policy' ? 'browse.reviewPolicyPassed' : post.status === 'matched' && (post.selection_origin === 'model_initial_screen' || post.selection_origin === 'jev_initial_screen') ? 'browse.modelPassed' : `browse.status.${post.status}`, { defaultValue: post.status })}</span>
           {post.source_keyword && <span>{post.source_keyword}</span>}
           {post.published_at && <span>{post.published_at}</span>}
           {post.nickname && <span>{post.nickname}</span>}
         </div>
-        {post.status === 'matched' && <p className="text-xs leading-6 text-cyber-text-secondary">{t(post.review_decision_source === 'manual' ? 'browse.manualConfirmedHint' : 'browse.manualReviewHint')}{post.jev_original_choice && ` · ${t('browse.originalDecision', { choice: t(`browse.modelChoice.${post.jev_original_choice}`, { defaultValue: post.jev_original_choice }) })}`}</p>}
+        {post.status === 'matched' && <p className="text-xs leading-6 text-cyber-text-secondary">{t(post.review_decision_source === 'manual' ? 'browse.manualConfirmedHint' : 'browse.manualReviewHint')}{(post.model_original_choice || post.jev_original_choice) && ` · ${t('browse.originalDecision', { choice: t(`browse.modelChoice.${post.model_original_choice || post.jev_original_choice}`, { defaultValue: post.model_original_choice || post.jev_original_choice }) })}`}</p>}
         <details className="space-y-3 text-xs text-cyber-text-secondary"><summary className="cursor-pointer">{t('tasks.postMetadata')}</summary>
           <PostAccountMetadata post={post} /><PostLocationMetadata post={post} />
           <p>{t('browse.postId')}: <span className="font-mono">{post.id}</span></p>

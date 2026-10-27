@@ -300,7 +300,8 @@ def browse_posts(root, path, offset=0, limit=20, search='', status='all'):
             'evidence_source': text(note.get('evidence_source')),
             'selection_origin': 'user_confirmed' if note.get('review_decision_source') == 'manual' and collection_status(note) == 'matched' else text(note.get('selection_origin')),
             'manual_review_required': note.get('manual_review_required') in (True, 1, 'true', 'True'),
-            'jev_original_choice': text(note.get('jev_original_choice')),
+            'model_original_choice': text(note.get('model_original_choice') or note.get('jev_original_choice')),
+            'jev_original_choice': text(note.get('model_original_choice') or note.get('jev_original_choice')),
             'hit_comments': hits, 'comments': all_comments, 'images': images,
             **image_download_info(note, images),
         })

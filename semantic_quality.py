@@ -27,8 +27,8 @@ def saved_jev_rejection(note):
         return None  # Legacy spatial/image rejections stay in history, without blocking human review.
     return explicit_jev_rejection(
         object_type=note.get('semantic_object_type'),
-        original_choice=note.get('jev_original_choice'),
-        original_object_type=note.get('jev_original_object_type'),
+        original_choice=note.get('model_original_choice') or note.get('jev_original_choice'),
+        original_object_type=note.get('model_original_object_type') or note.get('jev_original_object_type'),
         reason=note.get('quality_reason') or note.get('semantic_rejection_reason'),
         verification_choice=note.get('verification_choice'),
     )

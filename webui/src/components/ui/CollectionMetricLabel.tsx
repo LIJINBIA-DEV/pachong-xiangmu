@@ -4,7 +4,7 @@ import { DashboardHint } from '@/components/dashboard/DashboardTooltip'
 export const collectionMetrics = {
   checked: {
     label: '已处理候选帖',
-    help: '已进入本轮处理或筛选的候选帖子数，包含通过、排除、待复核和处理中记录。不是最终通过数，也不等于 Jev 调用次数。',
+    help: '已进入本轮处理或筛选的候选帖子数，包含通过、排除、待复核和处理中记录。不是最终通过数，也不等于模型调用次数。',
   },
   saved: {
     label: '已记录帖子',

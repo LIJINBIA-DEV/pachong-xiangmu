@@ -705,7 +705,9 @@ class StreamingSemanticFilter:
                 verification_choice=decision.verification_choice, reason=decision.reason,
             )
             if not rejection and not state.matched and (not state.uncertain or decision.choice in {"keep", "review"}):
+                state.note['model_original_choice'] = decision.original_model_choice
                 state.note['jev_original_choice'] = decision.original_model_choice
+                state.note['model_original_object_type'] = decision.original_object_type
                 state.note['jev_original_object_type'] = decision.original_object_type
                 state.confidence = decision.confidence
                 state.evidence_source = decision.evidence_source
@@ -737,9 +739,11 @@ class StreamingSemanticFilter:
                     state.target_evidence_source = decision.target_evidence_source
                     state.quality_reason = decision.reason
                     if getattr(self.reviewer, 'selection_mode', None) == 'candidate':
-                        state.note['selection_origin'] = 'jev_initial_screen'
+                        state.note['selection_origin'] = 'jev_initial_screen' if isinstance(self.reviewer, JevReviewer) else 'model_initial_screen'
                         state.note['manual_review_required'] = True
+                        state.note['model_original_choice'] = decision.original_model_choice
                         state.note['jev_original_choice'] = decision.original_model_choice
+                        state.note['model_original_object_type'] = decision.original_object_type
                         state.note['jev_original_object_type'] = decision.original_object_type
                     state.verification_confidence = decision.verification_confidence
                     state.reviewed_twice = state.reviewed_twice or decision.reviewed_twice
@@ -761,6 +765,7 @@ class StreamingSemanticFilter:
         if chunk_rejection and not state.matched and not state.uncertain:
             state.rejection_reason = state.quality_reason = chunk_rejection
             state.note['semantic_rejection_reason'] = chunk_rejection
+            state.note['model_original_choice'] = 'reject'
             state.note['jev_original_choice'] = 'reject'
 
     async def finalize_note(

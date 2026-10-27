@@ -31,6 +31,7 @@ export interface BrowsePost {
   evidence_source: string
   selection_origin?: string
   manual_review_required?: boolean
+  model_original_choice?: string
   jev_original_choice?: string
   hit_comments: BrowseComment[]
   comments: BrowseComment[]

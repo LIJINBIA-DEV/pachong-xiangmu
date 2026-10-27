@@ -2,9 +2,10 @@
   "browse": {
     "reviewPolicyPassed": "初筛合格（原待复核）",
     "userConfirmed": "已保留（人工确认）",
-    "jevPassed": "Jev 初筛合格",
+    "modelPassed": "模型初筛合格",
+    "jevPassed": "模型初筛合格",
     "manualReviewHint": "已纳入候选，最终是否采用由你人工审核。",
-    "originalDecision": "Jev 原始结论：{{choice}}",
+    "originalDecision": "模型原始结论：{{choice}}",
     "modelChoice": {
       "keep": "保留",
       "review": "待复核",

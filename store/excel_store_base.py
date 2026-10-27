@@ -527,8 +527,10 @@ class ExcelStoreBase(AbstractStore):
                 "duplicate_kind": getattr(state, "duplicate_kind", None),
                 "selection_origin": state.note.get("selection_origin"),
                 "manual_review_required": state.note.get("manual_review_required"),
-                "jev_original_choice": state.note.get("jev_original_choice"),
-                "jev_original_object_type": state.note.get("jev_original_object_type"),
+                "model_original_choice": state.note.get("model_original_choice") or state.note.get("jev_original_choice"),
+                "model_original_object_type": state.note.get("model_original_object_type") or state.note.get("jev_original_object_type"),
+                "jev_original_choice": state.note.get("model_original_choice") or state.note.get("jev_original_choice"),
+                "jev_original_object_type": state.note.get("model_original_object_type") or state.note.get("jev_original_object_type"),
                 "original_semantic_source": state.note.get("original_semantic_source"),
             }
             if state.note.get('semantic_rule') == 'topic':
