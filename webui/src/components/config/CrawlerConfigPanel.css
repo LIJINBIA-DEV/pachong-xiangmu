@@ -6,8 +6,12 @@ main.config-workspace { padding: 20px 24px 19px; font-family: 'Noto Sans SC', 'M
 .config-scroll { scroll-padding-bottom: 64px; }
 .config-grid { display: grid; grid-template-columns: minmax(0, 544fr) minmax(0, 632fr); gap: 16px; align-items: start; }
 .config-settings-stack { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+.config-main-stack { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .config-card { display: flex; min-width: 0; flex-direction: column; padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px; background: rgb(var(--cyber-bg-panel)); }
 .config-card h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 700; }
+.config-validation-region { min-width: 0; border-radius: 8px; outline: none; scroll-margin-block: 20px; }
+.config-validation-region[data-validation-error='true'] { background: rgb(6 182 212 / .045); box-shadow: inset 3px 0 0 #7dd3df; }
+.config-card[data-validation-error='true'] { border-color: rgb(6 182 212 / .35); box-shadow: none; }
 .config-login-environment { display: grid; grid-template-columns: 160px minmax(0, 1fr); align-items: end; gap: 14px; margin-top: 14px; }
 .config-login-environment p, .config-local-login p { margin: 0; font-size: 12px; line-height: 20px; color: #64748b; }
 .config-local-login { margin-top: 16px; padding: 20px; border: 1px solid #dce6f1; border-radius: 8px; background: #f5f8fb; }
@@ -157,6 +161,8 @@ main.config-workspace { padding: 20px 24px 19px; font-family: 'Noto Sans SC', 'M
 }
 
 .topic-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.config-topics > .topic-cards { margin-top: 0; }
+.config-topics .topic-cards h3 { font-size: 16px; line-height: 24px; }
 .topic-cards h3 { font-size: 14px; font-weight: 600; color: rgb(var(--cyber-text-primary)); }
 .topic-cards .keyword-search-heading { margin: 0; }
 .topic-intro, .topic-card-toolbar, .topic-search-preview, .topic-task-summary p { font-size: 12px; line-height: 20px; color: rgb(var(--cyber-text-secondary)); }

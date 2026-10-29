@@ -88,8 +88,9 @@ export type ReviewDecision = 'qualified' | 'unqualified' | null
 export type AccountDecision = 'marketing' | 'non_marketing' | null
 export interface ReviewEntry {
   decision: ReviewDecision
+  screening_passed?: boolean
   requires_images?: boolean
-  decision_reason?: 'text_review_pending' | 'marketing' | 'no_images' | 'all_images_rejected' | 'account_pending' | 'images_pending' | 'retained' | 'manual_qualified' | 'manual_unqualified' | 'pet_not_allowed' | 'semantic_reject' | 'evidence_contradicted' | 'news_media_account' | 'government_account' | 'institution_account' | 'account_blocklist_bot' | 'account_blocklist_media' | 'account_blocklist_government'
+  decision_reason?: 'semantic_passed' | 'text_review_pending' | 'marketing' | 'no_images' | 'all_images_rejected' | 'account_pending' | 'images_pending' | 'retained' | 'manual_qualified' | 'manual_unqualified' | 'pet_not_allowed' | 'semantic_reject' | 'evidence_contradicted' | 'news_media_account' | 'government_account' | 'institution_account' | 'account_blocklist_bot' | 'account_blocklist_media' | 'account_blocklist_government'
   semantic_rejection_reason?: 'pet_not_allowed' | 'semantic_reject' | 'evidence_contradicted' | null
   account_rejection_reason?: ReviewEntry['decision_reason'] | null
   account_identity_status?: 'excluded' | 'review' | 'personal' | null

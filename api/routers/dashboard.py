@@ -10,6 +10,20 @@ from api.services.dashboard import dashboard_snapshot
 router = APIRouter(prefix='/dashboard', tags=['dashboard'])
 
 
+@router.get('/overview')
+def get_overview(period: Literal['all', 'today', 'week', 'month', 'year', 'custom'] = 'week',
+                 start: datetime | None = None, end: datetime | None = None,
+                 task_id: str | None = Query(None, pattern=r'^(?:[a-f0-9]{32}|legacy-[a-f0-9]{16})$'),
+                 platform: str | None = Query(None, pattern=r'^[a-z][a-z0-9_]{0,20}$')):
+    from api.services.dashboard_overview import overview
+    try:
+        return overview(data_root(), crawler_manager, period, start, end, task_id, platform)
+    except ValueError as exc:
+        raise HTTPException(422, 'invalid_date_range' if str(exc) == 'invalid_date_range' else 'dashboard_data_unavailable') from None
+    except (OSError, KeyError, TypeError):
+        raise HTTPException(422, 'dashboard_data_unavailable') from None
+
+
 @router.get('')
 def get_dashboard(period: Literal['task', 'today', 'week', 'month', 'year', 'custom'] = 'task',
                   start: datetime | None = None, end: datetime | None = None,

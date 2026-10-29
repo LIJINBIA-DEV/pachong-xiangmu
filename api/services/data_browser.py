@@ -263,7 +263,15 @@ def reviewed_notes(root, path, notes, comments):
 
 
 def collection_status(note):
-    return note.get('collection_status') or note.get('semantic_result')
+    if note.get('collection_status'):
+        return note['collection_status']
+    status = note.get('semantic_result')
+    # Old candidate-policy exports promoted uncertainty to matched; keep the
+    # original file intact while giving every screen the same current status.
+    if status == 'matched' and (note.get('selection_origin') == 'review_policy'
+                              or (note.get('model_original_choice') or note.get('jev_original_choice')) == 'review'):
+        return 'review'
+    return status
 
 
 def browse_posts(root, path, offset=0, limit=20, search='', status='all'):

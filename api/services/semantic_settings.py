@@ -14,6 +14,7 @@ _lock = RLock()
 class SemanticSettingsUpdate(BaseModel):
     api_key: SecretStr | None = Field(default=None, max_length=512)
     clear_key: bool = False
+    model: str | None = Field(default=None, max_length=120)
 
 
 def runtime_key(root):
@@ -32,11 +33,20 @@ def runtime_key(root):
 
 
 def public_settings(root):
-    return {'key_configured': bool(runtime_key(root))}
+    result = {'key_configured': bool(runtime_key(root))}
+    path = directory(root) / 'jev.json'
+    if path.exists():
+        model = json.loads(path.read_text(encoding='utf-8')).get('model')
+        if model:
+            result['model'] = model
+    return result
 
 
 def save_settings(root, change):
     with _lock:
+        from semantic_filter import SUPPORTED_MODELS
+        if change.model is not None and change.model not in SUPPORTED_MODELS:
+            raise ValueError('unsupported_semantic_model')
         supplied = change.api_key.get_secret_value().strip() if change.api_key else ''
         key = '' if change.clear_key else valid_key(supplied) if supplied else runtime_key(root)
         folder = directory(root, True)
@@ -44,5 +54,6 @@ def save_settings(root, change):
         if path.is_symlink():
             raise ValueError('semantic_settings_storage_failed')
         encrypted = cipher(root, True).encrypt(key.encode()).decode() if key else ''
-        atomic_json(path, {'encrypted_key': encrypted})
+        model = change.model or public_settings(root).get('model')
+        atomic_json(path, {'encrypted_key': encrypted, **({'model': model} if model else {})})
         return public_settings(root)

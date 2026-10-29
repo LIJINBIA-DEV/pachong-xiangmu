@@ -145,21 +145,6 @@ def verify_quote(quote: str, source: str) -> bool:
     norm_s = re.sub(r'\s+', ' ', source).strip()
     if norm_q and norm_q in norm_s:
         return True
-    tag_pattern = r'\[[^\]]{1,15}\]'
-    tagless_q = re.sub(tag_pattern, '', quote)
-    tagless_s = re.sub(tag_pattern, '', source)
-    if tagless_q.strip() and tagless_q.strip() in tagless_s:
-        return True
-    punc_pattern = r'[\s\r\n\t，。！？、；：“”‘’"\'（）()\[\]【】——…,.!?;:\-_~～#]+'
-    clean_q = re.sub(punc_pattern, '', tagless_q)
-    clean_s = re.sub(punc_pattern, '', tagless_s)
-    if len(clean_q) >= 4 and clean_q in clean_s:
-        return True
-    clauses = [c for c in re.split(punc_pattern, quote) if len(c) >= 3]
-    if clauses and sum(len(c) for c in clauses) >= 6:
-        matched_chars = sum(len(c) for c in clauses if c in clean_s or c in source)
-        if matched_chars / sum(len(c) for c in clauses) >= 0.7:
-            return True
     return False
 
 
@@ -200,19 +185,9 @@ def parse_posts(value, originals, mode):
                 if matched:
                     verified.append({'source': matched, 'quote': quote})
         if not verified:
-            if len(originals) == 1:
-                raise ValueError('summary_invalid_evidence')
-            fallback_source = 'title' if 'title' in sources and sources['title'].strip() else 'body' if 'body' in sources else next(iter(sources.keys()), None)
-            if fallback_source:
-                fallback_quote = sources[fallback_source].strip().split('\n')[0][:100]
-                if fallback_quote:
-                    verified.append({'source': fallback_source, 'quote': fallback_quote})
-            if not verified:
-                raise ValueError('summary_invalid_evidence')
+            raise ValueError('summary_invalid_evidence')
         if mode == 'evaluation' and stance != 'unclear' and not any(e['source'] in {'title', 'body'} for e in verified):
-            if len(originals) == 1:
-                raise ValueError('summary_invalid_evidence')
-            stance = 'unclear'
+            raise ValueError('summary_invalid_evidence')
         parsed.append({k: v for k, v in original.items() if k not in {'sources', 'evaluation', 'target'}} | {
             'summary': summary, 'stance': stance, 'topics': topics, 'evidence': verified})
     return sorted(parsed, key=lambda post: int(post['ref'][1:]))

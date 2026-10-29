@@ -2,7 +2,7 @@
   "reviewExport": {
     "button": "导出 Excel＋配图",
     "running": "正在准备结果包…",
-    "hint": "下载 ZIP：已人工保留帖的 Excel、已下载配图、图片对应表和缺失说明；纯文字帖子也可导出。",
+    "hint": "下载 ZIP：已保留帖（自动通过或人工保留）的 Excel、已下载配图、图片对应表和缺失说明；纯文字帖子也可导出。",
     "empty": "目前没有可导出的保留帖子。",
     "failed": "结果包未生成，请确认采集已停止后重试；最多保留 3 个结果包，可先移除旧包。",
     "missingMain": "原选择对应的采集主 Excel 已缺失，请恢复主文件或选择另一轮采集；语义文件仍保留在后台。",
@@ -182,7 +182,7 @@
   "reviewFilter": "人工审核状态",
   "filters": {
     "all": "全部帖子",
-    "unmarked": "未完成审核",
+    "unmarked": "待人工复核",
     "qualified": "保留",
     "unqualified": "排除"
   },
@@ -249,7 +249,8 @@
     "account_blocklist_media": "命中媒体账号排除名单。",
     "account_blocklist_government": "命中政务账号排除名单。",
     "account_identity_uncertain": "账号身份不确定，留给人工确认。",
-    "text_review_pending": "请核对文字中的评价与对象关系，并确认本帖结论；图片不是保留条件。"
+    "text_review_pending": "请核对文字中的评价与对象关系，并确认本帖结论；图片不是保留条件。",
+    "semantic_passed": "已通过自动筛选，无需再次确认；如有误判，可手动更正。"
   },
   "supplement": {
     "qrLoginRequired": "扫码登录状态缺失或已过期，请先到配置页重新扫码，再继续补采。",
@@ -343,5 +344,9 @@
   "imageOnlineFailed": "在线图片暂时无法加载，可能已过期或受平台限制。可重试或打开原帖查看。",
   "imageUrlMissing": "此记录未保存可用图片地址，可打开原帖查看。",
   "retryImage": "重新加载图片",
-  "postReviewInstructions": "根据帖子内容进行审核。审核通过并保存后，自动切换到下一帖；最后一帖保持在当前页。"
+  "postReviewInstructions": "根据帖子内容进行审核。审核通过并保存后，自动切换到下一帖；最后一帖保持在当前页。",
+  "reviewQueueProgress": "待人工处理 {{pending}} 帖 · 本任务共 {{total}} 帖",
+  "noReviewNeeded": "本任务暂无需要人工复核的帖子。",
+  "noReviewNeededHint": "自动通过的帖子已保留，无需逐条确认。你仍可查看全部帖子，手动纠正结论。",
+  "viewAllPosts": "查看全部帖子"
 }

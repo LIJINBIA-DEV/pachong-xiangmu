@@ -32,7 +32,7 @@ export function CollectionProgressBar({ active, busy, starting, stopping, startD
         {([['checked', data.checked], ['saved', data.saved], ['qualified', data.qualified]] as const).map(([metric, value]) => <span key={metric}><CollectionMetricLabel metric={metric} /><b>{value}</b><small>帖</small></span>)}
         {[['目标帖子数', data.target ?? '—', '帖'], ['已采评论', data.comments, '条'], ['已下载图片', data.images, '张']].map(([label, value, unit]) => <span key={label}><small>{label}</small><b>{value}</b><small>{unit}</small></span>)}
       </div>}
-      {prepared && !waiting && <p>{data.current_keyword ? `当前主题：${data.current_keyword} · ` : ''}已完成主题 {data.completed_topics} / {data.total_topics} · 按自动筛选通过数计算目标进度，通过后仍需人工审核。</p>}
+      {prepared && !waiting && <p>{data.current_keyword ? `当前主题：${data.current_keyword} · ` : ''}已完成主题 {data.completed_topics} / {data.total_topics} · 自动筛选通过的直接保留，不确定的交由人工复核。</p>}
       {query.isError && <p role="status">进度暂时读取失败，采集仍按后台状态进行；可到控制台查看输出。</p>}
     </section>}
     {!busy && <Button type="button" disabled={startDisabled} className="config-primary" onClick={onStart}><img src={playIcon} alt="" />开始爬虫</Button>}

@@ -1,7 +1,8 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleHelp } from 'lucide-react'
+import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useCrawlerStore } from '@/store/crawlerStore'
 import { crawlerApi, type SemanticKeyCheckResult } from '@/lib/api'
 import { usePlatforms, useConfigOptions, useStartCrawler, useStopCrawler } from '@/hooks/useCrawler'
-import { topicsError } from '@/lib/topicCards'
+import { firstIncompleteStartSection, type StartSection } from '@/lib/collectionStartValidation'
 import { publicationRangeError } from '@/lib/publicationRange'
 import { ParsedIdList } from './ParsedIdList'
 import { KeywordSearchInput } from './KeywordSearchInput'
@@ -20,6 +21,8 @@ import messageIcon from '@/assets/config/message.svg'
 import imageIcon from '@/assets/config/image.svg'
 import { CollectionProgressBar } from './CollectionProgressBar'
 import './CrawlerConfigPanel.css'
+
+const validationToastId = 'crawler-start-validation'
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="config-field"><span>{label}</span>{children}</label>
@@ -54,16 +57,27 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
   const [semanticApiKey, setSemanticApiKey] = useState('')
   const keyClient = useQueryClient()
   const semanticSettings = useQuery({ queryKey: ['semanticKeySettings'], queryFn: async () => (await crawlerApi.getSemanticSettings()).data, enabled: active, retry: 1 })
-  const saveKey = useMutation({ mutationFn: async (input: { api_key?: string; clear_key?: boolean }) => (await crawlerApi.saveSemanticSettings(input)).data,
+  const restoredModel = useRef(false)
+  useEffect(() => {
+    if (!semanticSettings.data || restoredModel.current) return
+    restoredModel.current = true
+    if (semanticSettings.data.model) updateConfig({ semantic_model: semanticSettings.data.model })
+  }, [semanticSettings.data, updateConfig])
+  const saveKey = useMutation({ mutationFn: async (input: { api_key?: string; clear_key?: boolean; model?: string }) => (await crawlerApi.saveSemanticSettings(input)).data,
     onSuccess: data => { keyClient.setQueryData(['semanticKeySettings'], data); setSemanticApiKey(''); setSemanticKeyCheck(null); void keyClient.invalidateQueries({ queryKey: ['supplement'] }) } })
   async function persistSemanticKey(clear = false) {
-    try { await saveKey.mutateAsync(clear ? { clear_key: true } : { api_key: semanticApiKey.trim() }); return true }
+    try { await saveKey.mutateAsync(clear ? { clear_key: true } : { api_key: semanticApiKey.trim(), model: config.semantic_model }); return true }
     catch { return false }
   }
   const [isTestingSemanticKey, setIsTestingSemanticKey] = useState(false)
   const [semanticKeyCheck, setSemanticKeyCheck] = useState<SemanticKeyCheckResult | null>(null)
   const [qrLoginReady, setQRLoginReady] = useState(false)
   const [help, setHelp] = useState<'config' | 'rules' | null>(null)
+  const [validationSection, setValidationSection] = useState<StartSection | null>(null)
+  const targetRef = useRef<HTMLElement>(null)
+  const outputRef = useRef<HTMLElement>(null)
+  const topicsRef = useRef<HTMLElement>(null)
+  const loginRef = useRef<HTMLElement>(null)
   const { data: platforms } = usePlatforms()
   const { data: options } = useConfigOptions()
   const { mutate: startCrawler, isPending: isStarting } = useStartCrawler()
@@ -75,13 +89,34 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
   const webQRLogin = ['wb', 'xhs'].includes(config.platform) && config.login_type === 'qrcode'
   const loginPending = !options || unavailableLocal || (webQRLogin && !qrLoginReady) || (loginEnvironment === 'server' && config.login_type === 'qrcode' && !['wb', 'xhs'].includes(config.platform))
   const evaluationOnly = !!config.semantic_filter && config.semantic_rule === 'scene'
-  const missingKeywords = config.crawler_type === 'search' && !!topicsError(collectionTopics, evaluationOnly)
   const invalidNoteCount = config.crawler_type === 'search' && (config.max_notes_count === null || !Number.isInteger(config.max_notes_count) || config.max_notes_count < 1 || config.max_notes_count > 10000)
   const invalidTimeRange = config.crawler_type === 'search' ? publicationRangeError(config) : null
   const semanticSupported = config.crawler_type === 'search' && (config.platform === 'wb' || config.platform === 'xhs')
   const semanticCommentSampling = semanticSupported && config.semantic_filter
+  const incompleteSection = firstIncompleteStartSection({ ...config, login_environment: loginEnvironment }, {
+    topics: collectionTopics,
+    keyAvailable: !!semanticApiKey.trim() || !!semanticSettings.data?.key_configured,
+    loginReady: !loginPending,
+    models: options?.semantic_models.map(item => item.value) || ['jev-1.13.0', 'openai-compatible', 'semif-qwen3.5-4b-q4'],
+  })
+  useEffect(() => {
+    if (!active || validationSection && validationSection !== incompleteSection) {
+      setValidationSection(null)
+      toast.dismiss(validationToastId)
+    }
+  }, [active, incompleteSection, validationSection])
   async function handleStart() {
-    if (saveKey.isPending || isTestingSemanticKey || isBusy || isDisabled || missingKeywords || invalidNoteCount || invalidTimeRange || loginPending) return
+    if (saveKey.isPending || isTestingSemanticKey || isBusy || isDisabled) return
+    if (incompleteSection) {
+      setValidationSection(incompleteSection)
+      toast.warning(t(`startValidation.${incompleteSection}`), { id: validationToastId, position: 'top-left', duration: 6000, closeButton: true })
+      const region = { target: targetRef, output: outputRef, topics: topicsRef, login: loginRef }[incompleteSection].current
+      region?.focus({ preventScroll: true })
+      region?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      return
+    }
+    setValidationSection(null)
+    toast.dismiss(validationToastId)
     if (semanticSupported && config.semantic_filter && !config.semantic_model.startsWith('semif') && semanticApiKey.trim() && !await persistSemanticKey()) return
     startCrawler({ ...config, login_environment: loginEnvironment, headless: loginEnvironment === 'server', max_comments_count: semanticCommentSampling ? 5 : undefined,
       publish_time_range: config.crawler_type === 'search' ? config.publish_time_range : 'all',
@@ -105,7 +140,8 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
   const semanticLocked = isDisabled || !semanticSupported || !config.semantic_filter
   return <div className="config-panel">
     <div className="config-grid">
-      <section className="config-card config-target">
+      <div className="config-main-stack">
+        <section ref={targetRef} className="config-card config-target config-validation-region" data-validation-error={validationSection === 'target'} tabIndex={-1} aria-label={t('section.targetMatrix.title')}>
         <h2>{t('section.targetMatrix.title')}</h2>
         <div className="config-target-fields">
           <Field label={t('field.platform')}><ConfigSelect label={t('field.platform')} value={config.platform} disabled={isDisabled}
@@ -134,6 +170,8 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
           </div>}
           {invalidTimeRange && <p role="alert" className="config-error">{t(`publication.errors.${invalidTimeRange}`)}</p>}
         </section>}
+        </section>
+        <section ref={topicsRef} className="config-card config-topics config-validation-region" data-validation-error={validationSection === 'topics'} tabIndex={-1} aria-label={t('topics.title')}>
         {config.crawler_type === 'search' ? <KeywordSearchInput cards={collectionTopics} onChange={updateCollectionTopics} scene={evaluationOnly} target={config.max_notes_count} disabled={isDisabled} controls={<div className="topic-filter-settings">
           <div className="topic-filter-controls"><Choice label={t('field.semanticFilter')} checked={config.semantic_filter} disabled={isDisabled || !semanticSupported || !config.enable_comments}
             onChange={(value) => updateConfig({ semantic_filter: value })} />
@@ -148,9 +186,10 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
           </Field><ParsedIdList value={config.crawler_type === 'detail' ? config.specified_ids : config.creator_ids} platform={config.platform} type={config.crawler_type === 'detail' ? 'detail' : 'creator'} disabled={isDisabled} />
           {config.platform === 'xhs' && <p className="config-error">{t('warning.xhsToken')}</p>}
         </div>}
-      </section>
+        </section>
+      </div>
       <div className="config-settings-stack">
-      <section className="config-card config-output">
+      <section ref={outputRef} className="config-card config-output config-validation-region" data-validation-error={validationSection === 'output'} tabIndex={-1} aria-label={t('section.outputConfig.title')}>
         <div className="config-section-heading"><h2>{t('section.outputConfig.title')}</h2></div>
         <div className="config-output-fields">
           <Field label={t('field.saveFormat')}><ConfigSelect label={t('field.saveFormat')} value="excel" onChange={() => updateConfig({ save_option: 'excel' })} disabled={isDisabled} items={[{ value: 'excel', label: 'Excel File' }]} /></Field>
@@ -177,7 +216,7 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
         {config.semantic_model.startsWith('jev') && <JevProxySettings apiKey={semanticApiKey} disabled={isDisabled} onRoutingChange={() => setSemanticKeyCheck(null)} />}
         <Button type="button" variant="outline" className="config-rules-button" onClick={() => setHelp('rules')}>{t('help.viewRules')}</Button>
       </section>
-      <section className="config-card config-login">
+      <section ref={loginRef} className="config-card config-login config-validation-region" data-validation-error={validationSection === 'login'} tabIndex={-1} aria-label={t('section.authMatrix.title')}>
         <div className="config-login-heading"><h2>{t('section.authMatrix.title')}</h2><span>{t('field.loginMethod')}</span>
           <ConfigSelect label={t('field.loginMethod')} value={config.login_type} disabled={isDisabled}
             items={options?.login_types.map((item) => ({ ...item, label: item.value === 'qrcode' ? t('qrLogin.method') : item.label })) || [{ value: 'qrcode', label: t('qrLogin.method') }, { value: 'cookie', label: 'Cookie' }]}
@@ -223,7 +262,7 @@ export function CrawlerConfigPanel({ active = true }: { active?: boolean }) {
       </div>
     </div>
     <CollectionProgressBar active={active} busy={isBusy || isDisabled} starting={isStarting} stopping={isStopping} onStart={handleStart} onStop={() => stopCrawler()}
-      startDisabled={saveKey.isPending || isTestingSemanticKey || isBusy || missingKeywords || invalidNoteCount || !!invalidTimeRange || loginPending} />
+      startDisabled={saveKey.isPending || isTestingSemanticKey || isBusy} />
     <ConfigHelpDialog kind={help} semanticRule={config.semantic_rule} onClose={() => setHelp(null)} />
   </div>
 }

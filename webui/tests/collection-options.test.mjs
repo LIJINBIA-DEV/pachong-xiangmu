@@ -21,6 +21,8 @@ const code = buildSync({
     import dataTranslations from './src/i18n/locales/zh-CN/data.json'
     import { CrawlerConfigPanel } from './src/components/config/CrawlerConfigPanel'
     import { CollectionProgressBar } from './src/components/config/CollectionProgressBar'
+    import { ManualReviewPage } from './src/components/data/ManualReviewPage'
+    import { withReviewOutcomes } from './src/lib/reviewOutcome'
     import { WeiboQRCodeLogin } from './src/components/config/WeiboQRCodeLogin'
     import api, { crawlerApi } from './src/lib/api'
     import { useCrawlerStore } from './src/store/crawlerStore'
@@ -56,6 +58,20 @@ const code = buildSync({
       Object.assign(initial, { status: 'idle', stage: 'idle', startedAt: null })
       return html
     }
+    export async function renderReview(entries) {
+      const file = 'xhs/posts.xlsx'
+      const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } })
+      client.setQueryData(['collectionTasks'], [{ id: 'task', title: '测试任务', platform: 'xhs', primary_file: file, modified_at: 1793111874,
+        files: [{ path: file, name: 'posts.xlsx', type: 'xlsx', file_kind: 'collection' }] }])
+      client.setQueryData(['manualReview', file], withReviewOutcomes({ entries, total: Object.keys(entries).length, completed: 0 }))
+      client.setQueryData(['reviewExportList'], [])
+      client.setQueryData(['supplement', file], { supported: false })
+      const i18n = createInstance()
+      await i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { workspace, data: dataTranslations } }, interpolation: { escapeValue: false } })
+      const html = renderToStaticMarkup(React.createElement(QueryClientProvider, { client }, React.createElement(I18nextProvider, { i18n }, React.createElement(ManualReviewPage))))
+      client.clear()
+      return html
+    }
     export async function render(config, keySaved = false) {
       // Zustand uses its initial snapshot during server rendering.
       initial.config = { ...defaults, platform: 'xhs', login_environment: 'local', ...config }
@@ -74,10 +90,23 @@ const code = buildSync({
   tsconfig: 'tsconfig.json', loader: { '.svg': 'dataurl', '.css': 'empty' },
 }).outputFiles[0].text
 writeFileSync(output, code)
-const { render, renderProgress, renderQR, loginRequest } = await import(pathToFileURL(output))
+const { render, renderProgress, renderQR, loginRequest, renderReview } = await import(pathToFileURL(output))
 process.on('exit', () => rmSync(directory, { recursive: true, force: true }))
 
 const content = html => html.slice(html.indexOf('<section class="config-card config-images"'))
+
+test('automatic passes do not create manual work and the empty queue is explicit', async () => {
+  const entries = Object.fromEntries(Array.from({ length: 6 }, (_, i) => [String(i), {
+    screening_passed: true, account: null, images: {}, review_images: [], decision: null,
+  }]))
+  const html = await renderReview(entries)
+  assert.ok(html.includes('待人工处理 0 帖'))
+  assert.ok(html.includes('本任务共 6 帖'))
+  assert.ok(html.includes('本任务暂无需要人工复核的帖子'))
+  assert.ok(html.includes('查看全部帖子'))
+  assert.ok(html.includes('value="unmarked" selected=""'))
+  assert.ok(!html.includes('review-work-area'))
+})
 
 test('QR request respects selected environment rather than forcing server login', async () => {
   for (const mode of ['local', 'server', 'auto']) {
@@ -128,14 +157,15 @@ test('semantic collection hides automatic sampling details and reply extraction 
   assert.ok(!content(html).includes('采集浏览器：后台运行'))
 })
 
-test('publication range is before keyword input and invalid custom dates disable starting', async () => {
+test('invalid dates stay visible and the start button remains clickable for guided validation', async () => {
   const { html } = await render({ publish_time_range: 'custom', publish_start_date: '2026-10-10', publish_end_date: '2026-10-01' })
   assert.ok(html.indexOf('config-publication-range') < html.indexOf('keyword-search-input'))
   assert.ok(html.includes('aria-label="开始日期"'))
   assert.ok(html.includes('aria-label="结束日期"'))
   assert.ok(html.includes('开始日期不能晚于结束日期'))
-  const buttons = html.match(/<button[^>]*>[\s\S]*?<\/button>/g) || []
-  assert.ok(buttons.some(button => button.includes('开始爬虫') && button.includes('disabled')))
+  const start = html.match(/<button\b[^>]*class="[^"]*\bconfig-primary\b[^"]*"[^>]*>/)?.[0]
+  assert.ok(start)
+  assert.ok(!/\sdisabled(?:=|\s|>)/.test(start))
 })
 
 

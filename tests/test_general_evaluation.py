@@ -61,7 +61,7 @@ async def test_any_target_can_match_without_images(tmp_path, pair, title, body):
     ({'choice': 'review'}, 'review'),
     ({'support': 'contradicted'}, 'excluded'),
     ({'support': 'unclear'}, 'review'),
-    ({'evidence': False}, 'excluded'),
+    ({'evidence': False}, 'review'),
 ])
 async def test_uncertainty_and_unsupported_relations_never_match(tmp_path, options, status):
     async with httpx.AsyncClient(transport=httpx.MockTransport(responder(**options))) as client:
@@ -87,7 +87,7 @@ async def test_text_only_review_export_and_old_file_preservation(tmp_path):
     assert notes[0]['semantic_rule'] == 'evaluation'
     entry = annotations(tmp_path,path)['entries']['1:可爱 宠物狗']
     assert entry['requires_images'] is False
-    assert entry['decision'] is None and entry['automatic_decision_reason'] == 'text_review_pending'
+    assert entry['decision'] == 'qualified' and entry['automatic_decision_reason'] == 'semantic_passed'
     update_annotation(tmp_path,path,'1:可爱 宠物狗','post','qualified')
     assert annotations(tmp_path,path)['entries']['1:可爱 宠物狗']['decision'] == 'qualified'
     assert export_review(tmp_path,path)

@@ -4,7 +4,7 @@
     "userConfirmed": "Retained (manually confirmed)",
     "modelPassed": "Model screening passed",
     "jevPassed": "Model screening passed",
-    "manualReviewHint": "Retained as a candidate; final inclusion requires your manual review.",
+    "manualReviewHint": "Automatically passed and retained; no additional approval is required. Open manual review to correct a decision.",
     "originalDecision": "Original model decision: {{choice}}",
     "modelChoice": {
       "keep": "Keep",
@@ -72,7 +72,8 @@
       "excluded": "Excluded",
       "unfiltered": "Unfiltered"
     },
-    "manualConfirmedHint": "Accepted according to your manual conclusion. The original model decision remains in the screening record."
+    "manualConfirmedHint": "Accepted according to your manual conclusion. The original model decision remains in the screening record.",
+    "candidateReviewHint": "This legacy candidate still needs manual confirmation."
   },
   "dialog": {
     "button": "PAYLOAD_MATRIX",

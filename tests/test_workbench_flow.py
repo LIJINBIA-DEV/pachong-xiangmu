@@ -20,11 +20,12 @@ from semantic_filter import StreamingSemanticFilter
 
 
 @pytest.mark.asyncio
-async def test_filter_progress_review_export_summary_and_durable_logs(tmp_path, monkeypatch):
+@pytest.mark.parametrize('semantic_model', ['jev-1.13.0', 'openai-compatible'])
+async def test_filter_progress_review_export_summary_and_durable_logs(tmp_path, monkeypatch, semantic_model):
     monkeypatch.setattr(data_router, 'data_root', lambda: tmp_path)
     monkeypatch.setattr(dashboard_router, 'data_root', lambda: tmp_path)
     task = create_task(tmp_path, {'platform': 'xhs', 'semantic_filter': True,
-        'semantic_rule': 'topic', 'enable_comments': True}, {'苏州 房价': 2})
+        'semantic_rule': 'topic', 'semantic_model': semantic_model, 'enable_comments': True}, {'苏州 房价': 2})
     run = prepare_run(tmp_path, task, task['targets'])
     monkeypatch.setenv('MEDIACRAWLER_COLLECTION_RUN', str(run))
     monkeypatch.setattr(crawler_manager, 'collection_run', run)
@@ -35,6 +36,9 @@ async def test_filter_progress_review_export_summary_and_durable_logs(tmp_path, 
     def semantic_response(request):
         payload = json.loads(request.content)
         choice, confidence = next(decisions)
+        if 'messages' in payload:
+            result = {'choice': choice, 'confidence': confidence, 'evidence_text': '苏州住宅价格讨论'}
+            return httpx.Response(200, json={'choices': [{'message': {'content': json.dumps(result)}}]})
         evidence = next(key for key in payload['questions']['evidence_text']['criteria'] if key != 'unclear')
         return httpx.Response(200, json={'answers': {
             'relation': {'choice': choice, 'confidence': confidence},
@@ -43,7 +47,7 @@ async def test_filter_progress_review_export_summary_and_durable_logs(tmp_path, 
     output = tmp_path / 'xhs' / 'flow.xlsx'
     output.parent.mkdir()
     async with httpx.AsyncClient(transport=httpx.MockTransport(semantic_response)) as model:
-        stream = StreamingSemanticFilter(output, [('苏州 房价', '')], 'fixture-key', client=model, semantic_rule='topic')
+        stream = StreamingSemanticFilter(output, [('苏州 房价', '')], 'fixture-key', model=semantic_model, client=model, semantic_rule='topic')
         for number in range(1, 4):
             await stream.add_note({'note_id': str(number), 'title': '苏州住宅价格讨论',
                 'desc': f'苏州住宅成交总价约{number}百万元。', 'source_keyword': '苏州 房价',

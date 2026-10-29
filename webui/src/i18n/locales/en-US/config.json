@@ -410,5 +410,11 @@
       "label": "Collect a creator’s posts",
       "description": "Enter profile links or account IDs to collect posts by those accounts. Xiaohongshu requires full profile links with their parameters."
     }
+  },
+  "startValidation": {
+    "target": "Complete target settings first.",
+    "output": "Complete output and model settings first.",
+    "topics": "Complete collection topics first.",
+    "login": "Complete login settings first."
   }
 }

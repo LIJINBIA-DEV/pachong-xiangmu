@@ -29,3 +29,26 @@ export interface CollectionProgress {
   percent: number | null; comments: number; images: number; completed_topics: number; total_topics: number
   updated_at: string; run_status?: string
 }
+
+export type OverviewPeriod = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom'
+export interface OverviewMetrics {
+  recorded: number; checked: number; retained: number; review: number; excluded: number
+  unfiltered: number; processing: number; duplicate: number; comments: number
+  images: number; downloaded: number; download_failed: number; online_images: number; missing_images: number
+  auto_passed: number; manual_retained: number; manual_excluded: number
+}
+export interface OverviewTask {
+  id: string; title: string; platform: string; file: string | null; status: string
+  started_at: string | null; last_at: string | null; rounds: number; target: number | null
+  duration_seconds: number | null; estimated_time: boolean; metrics: OverviewMetrics
+  summaries: { ready: number; failed: number; running: number }
+}
+export interface OverviewPoint { at: string; recorded: number; retained: number; review: number; rounds: number }
+export interface DashboardOverview {
+  updated_at: string; range: { period: OverviewPeriod; start: string; end: string; interval: 'hour' | 'day' | 'month' }
+  metrics: OverviewMetrics & { tasks: number; rounds: number; unique_posts: number; summary_ready: number }
+  timeline: OverviewPoint[]; tasks: OverviewTask[]
+  task_options: { id: string; title: string; platform: string; started_at: string | null }[]
+  warnings: Record<string, number>; active: boolean
+  scope: { task_id: string | null; platform: string | null; time_basis: string; review_basis: string }
+}

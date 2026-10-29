@@ -11,7 +11,7 @@ from semantic_quality import saved_collection_rejection
 @pytest.mark.asyncio
 @pytest.mark.parametrize(('choice', 'confidence', 'evidence', 'status'), [
     ('keep', .95, True, 'matched'),
-    ('keep', .95, False, 'excluded'),
+    ('keep', .95, False, 'review'),
     ('keep', .4, True, 'review'),
     ('reject', .95, True, 'excluded'),
 ])

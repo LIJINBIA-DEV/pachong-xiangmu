@@ -156,6 +156,44 @@ def test_comment_only_evidence_cannot_become_author_positive_stance():
     assert summary.parse_posts(value,[post],'evaluation')[0]['stance']=='unclear'
 
 
+@pytest.mark.parametrize('quote,source,expected', [
+    ('服务很可靠。', '这项服务很可靠。', True),
+    ('服务 很可靠。', '服务\n很可靠。', True),
+    ('酒店地理位置很好，员工服务十分热情，房间装修比较漂亮，不推荐。',
+     '酒店地理位置很好，员工服务十分热情，房间装修比较漂亮，推荐。', False),
+    ('服务很好，价格便宜。', '价格便宜。服务很好。', False),
+    ('这家店值得推荐。', '这家店[不]值得推荐。', False),
+])
+def test_quote_verification_preserves_meaning_order_and_negation(quote, source, expected):
+    assert summary.verify_quote(quote, source) is expected
+
+
+@pytest.mark.asyncio
+async def test_batch_invalid_quotes_fail_without_title_fallback_or_replacing_report(saved_task):
+    root, path = saved_task
+    notes = json.loads(path.read_text())
+    path.write_text(json.dumps([{**notes[0], 'note_id': str(i)} for i in range(1, 4)]))
+    before = path.read_bytes()
+    jobs, _ = mocked_jobs()
+    previous = await complete(jobs, root, path, mode='evaluation')
+    jobs, requests = mocked_jobs(bad_quote=True)
+    failed = await complete(jobs, root, path, mode='evaluation')
+    assert failed['total'] == 3
+    assert failed['status'] == 'failed' and failed['error'] == 'summary_invalid_evidence'
+    assert failed['result'] is None and len(requests) == 1
+    assert jobs.info(root, path)['report']['id'] == previous['id']
+    assert path.read_bytes() == before
+
+
+def test_batch_comment_only_evidence_does_not_support_author_stance():
+    originals = [{'ref': f'P{i}', 'sources': [{'id': 'title', 'text': '体验记录'},
+        {'id': 'comment:1', 'text': '真的很好'}]} for i in (1, 2)]
+    value = {'posts': [{'ref': f'P{i}', 'summary': '作者很满意', 'stance': 'positive',
+        'topics': ['体验'], 'evidence': [{'source': 'comment:1', 'quote': '真的很好'}]} for i in (1, 2)]}
+    with pytest.raises(ValueError, match='summary_invalid_evidence'):
+        summary.parse_posts(value, originals, 'evaluation')
+
+
 @pytest.mark.asyncio
 async def test_missing_key_and_duplicate_generation_do_not_send_requests(saved_task):
     root,path=saved_task

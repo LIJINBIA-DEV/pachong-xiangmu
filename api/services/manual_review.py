@@ -119,10 +119,12 @@ def note_key(note):
     return text(note.get('note_id') or note.get('aweme_id')) + ':' + text(note.get('source_keyword'))
 
 
-def review_outcome(account, imgs, decisions, *, requires_images=False):
+def review_outcome(account, imgs, decisions, *, requires_images=False, screening_passed=False):
     """Media presence and historical image marks never determine a post outcome."""
     if account == 'marketing':
         return 'unqualified', 'marketing'
+    if screening_passed:
+        return 'qualified', 'semantic_passed'
     return None, 'text_review_pending'
 
 
@@ -199,7 +201,11 @@ def annotations(root, path, keys=None, *, persist=True, dataset=None):
         for image in imgs:
             if image['decision_source'] == 'download':
                 image['decision_source'] = None
-        automatic_decision, automatic_reason = review_outcome(account, imgs, decisions)
+        # Candidate-policy records are unresolved; saved human overrides still win.
+        screening_passed = (note.get('semantic_result') == 'matched'
+                            and note.get('selection_origin') != 'review_policy'
+                            and (note.get('model_original_choice') or note.get('jev_original_choice')) != 'review')
+        automatic_decision, automatic_reason = review_outcome(account, imgs, decisions, screening_passed=screening_passed)
         from semantic_quality import saved_collection_rejection
         semantic_rejection = saved_jev_rejection(note) or saved_collection_rejection(note, comments.get(str(note.get('note_id') or note.get('aweme_id')), []))
         if semantic_rejection:
@@ -217,6 +223,7 @@ def annotations(root, path, keys=None, *, persist=True, dataset=None):
         entries[key] = {
             'decision': decision, 'decision_reason': reason, 'images': decisions,
             'requires_images': False,
+            'screening_passed': screening_passed,
             'post_decision': post_decision, 'post_decision_source': 'manual' if post_decision else None,
             'decision_source': 'manual' if post_decision and not gated else 'automatic',
             'semantic_rejection_reason': semantic_rejection,

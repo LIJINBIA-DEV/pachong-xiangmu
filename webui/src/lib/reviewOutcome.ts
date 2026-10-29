@@ -6,6 +6,7 @@ export function automaticReviewOutcome(entry: ReviewEntry): Pick<ReviewEntry, 'd
   if (entry.semantic_rejection_reason) return { decision: 'unqualified', decision_reason: entry.semantic_rejection_reason }
   if (entry.account_rejection_reason) return { decision: 'unqualified', decision_reason: entry.account_rejection_reason }
   if (entry.account === 'marketing') return { decision: 'unqualified', decision_reason: 'marketing' }
+  if (entry.screening_passed) return { decision: 'qualified', decision_reason: 'semantic_passed' }
   return { decision: null, decision_reason: 'text_review_pending' }
 }
 

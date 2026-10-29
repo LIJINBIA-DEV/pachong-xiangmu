@@ -1,5 +1,5 @@
 import { DataBrowser } from './DataBrowser'
 
-export function DataManagementPage({ onReview }: { onReview?: (file: string, postKey: string) => void }) {
-  return <DataBrowser onReview={onReview} />
+export function DataManagementPage({ initialFile, onReview }: { initialFile?: string; onReview?: (file: string, postKey: string) => void }) {
+  return <DataBrowser initialFile={initialFile} onReview={onReview} />
 }

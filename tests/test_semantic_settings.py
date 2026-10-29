@@ -43,6 +43,19 @@ def test_encrypted_storage_survives_reload_and_keeps_summary_settings(isolated):
     assert ai_settings.runtime_settings(root)['api_key'] == 'summary-secret'
 
 
+def test_saved_semantic_provider_and_key_survive_reload_without_echo(isolated):
+    change = settings.SemanticSettingsUpdate(api_key='provider-secret', model='openai-compatible')
+    assert settings.save_settings(isolated, change) == {'key_configured': True, 'model': 'openai-compatible'}
+    assert importlib.reload(settings).runtime_key(isolated) == 'provider-secret'
+    assert settings.public_settings(isolated)['model'] == 'openai-compatible'
+    assert b'provider-secret' not in (isolated/'.ai-settings/jev.json').read_bytes()
+    settings.save_settings(isolated, settings.SemanticSettingsUpdate())
+    assert settings.public_settings(isolated)['model'] == 'openai-compatible'
+    with pytest.raises(ValueError):
+        settings.save_settings(isolated, settings.SemanticSettingsUpdate(model='unsupported'))
+    assert settings.runtime_key(isolated) == 'provider-secret'
+
+
 def test_clearing_does_not_revive_environment_keys_or_follow_symlinks(isolated, monkeypatch):
     monkeypatch.setenv('TYPESAFE_API_KEY', 'environment-secret')
     assert settings.runtime_key(isolated) == 'environment-secret'

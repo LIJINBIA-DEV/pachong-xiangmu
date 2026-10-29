@@ -22,6 +22,7 @@ function App() {
   }
   const [page, setPage] = useState<WorkspacePage>(readPage)
   const [reviewRequest, setReviewRequest] = useState<{ file: string; id: number; postKey?: string }>()
+  const [dataRequest, setDataRequest] = useState<{ file: string; id: number }>()
   const [visited, setVisited] = useState<WorkspacePage[]>([page])
   useEffect(() => { setVisited((pages) => pages.includes(page) ? pages : [...pages, page]) }, [page])
   useEffect(() => {
@@ -62,11 +63,11 @@ function App() {
         <WorkspaceSidebar page={page} onNavigate={navigate} />
         <main className={`flex min-h-0 min-w-0 flex-1 flex-col bg-cyber-bg-primary p-4 md:p-6 ${page === 'config' ? 'config-workspace' : page === 'dashboard' ? 'dashboard-workspace' : ''}`}>
           {page !== 'review' && page !== 'dashboard' && <header className={`mb-5 flex shrink-0 flex-wrap items-start justify-between gap-3 ${page === 'config' ? 'config-page-heading' : ''}`}><div className={page === 'config' ? 'flex items-center gap-2' : ''}><h1 className="text-xl font-semibold text-cyber-text-primary">{t(`pages.${page}`)}</h1><p className="mt-1 text-sm leading-6 text-cyber-text-secondary">{t(`descriptions.${page}`)}</p></div>{page === 'data' && <AISettingsDialog />}</header>}
-          {(page === 'dashboard' || visited.includes('dashboard')) && <div className={`${page === 'dashboard' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><DashboardPage active={page === 'dashboard'} onReview={(file) => { if (file) setReviewRequest({ file, id: Date.now() }); navigate('review') }} /></div>}
+          {(page === 'dashboard' || visited.includes('dashboard')) && <div className={`${page === 'dashboard' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><DashboardPage active={page === 'dashboard'} onData={(file) => { setDataRequest({ file, id: Date.now() }); navigate('data') }} onReview={(file) => { if (file) setReviewRequest({ file, id: Date.now() }); navigate('review') }} /></div>}
           {/* Keep configuration drafts, credentials and log subscriptions alive across pages. */}
           <div className={`${page === 'config' ? 'flex' : 'hidden'} config-scroll min-h-0 flex-1 flex-col overflow-y-auto`}><CrawlerConfigPanel active={page === 'config'} /></div>
           <div className={`${page === 'console' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><MainContent active={page === 'console'} /></div>
-          {(page === 'data' || visited.includes('data')) && <div className={`${page === 'data' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><DataManagementPage onReview={(file, postKey) => { setReviewRequest({ file, postKey, id: Date.now() }); navigate('review') }} /></div>}
+          {(page === 'data' || visited.includes('data')) && <div className={`${page === 'data' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><DataManagementPage key={dataRequest?.id} initialFile={dataRequest?.file} onReview={(file, postKey) => { setReviewRequest({ file, postKey, id: Date.now() }); navigate('review') }} /></div>}
           {(page === 'review' || visited.includes('review')) && <div className={`${page === 'review' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><ManualReviewPage fileRequest={reviewRequest} /></div>}
           {(page === 'logs' || visited.includes('logs')) && <div className={`${page === 'logs' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col`}><CollectionLogsPage active={page === 'logs'} /></div>}
         </main>

@@ -4,7 +4,7 @@
     "userConfirmed": "已保留（人工确认）",
     "modelPassed": "模型初筛合格",
     "jevPassed": "模型初筛合格",
-    "manualReviewHint": "已纳入候选，最终是否采用由你人工审核。",
+    "manualReviewHint": "已通过自动筛选并保留，无需逐条人工确认；如有误判，可打开人工审核更正。",
     "originalDecision": "模型原始结论：{{choice}}",
     "modelChoice": {
       "keep": "保留",
@@ -72,7 +72,8 @@
       "excluded": "已排除",
       "unfiltered": "未筛选"
     },
-    "manualConfirmedHint": "已按你的人工结论采用；原始模型判断保留在筛选记录中。"
+    "manualConfirmedHint": "已按你的人工结论采用；原始模型判断保留在筛选记录中。",
+    "candidateReviewHint": "此帖是旧版保留的待复核候选，仍需人工确认。"
   },
   "dialog": {
     "button": "数据管理",

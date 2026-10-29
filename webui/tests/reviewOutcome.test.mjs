@@ -8,6 +8,22 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { module: t
 const { reviewOutcome, withReviewOutcomes, applyReviewChange, mergeReviewResponse } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 const entry = (account, values) => ({ account, review_images: values.map((_, i) => ({ key: String(i) })), images: Object.fromEntries(values.map((v, i) => [String(i), v])), decision: 'qualified' })
 
+test('model passes need no duplicate approval, uncertain posts stay pending, human corrections win', () => {
+  const review = withReviewOutcomes({ total: 2, completed: 0, entries: {
+    passed: { ...entry(null, []), screening_passed: true },
+    uncertain: { ...entry(null, []), screening_passed: false },
+  } })
+  assert.equal(review.completed, 1)
+  assert.equal(review.entries.passed.decision, 'qualified')
+  assert.equal(review.entries.passed.decision_source, 'automatic')
+  assert.equal(review.entries.uncertain.decision, null)
+  const corrected = applyReviewChange(review, { key: 'passed', kind: 'post', decision: 'unqualified' })
+  assert.equal(corrected.entries.passed.decision_reason, 'manual_unqualified')
+  const reset = applyReviewChange(corrected, { key: 'passed', kind: 'post', decision: null })
+  assert.equal(reset.entries.passed.decision_reason, 'semantic_passed')
+  assert.equal(review.entries.passed.post_decision, undefined)
+})
+
 test('institution exclusions win optimistic account and whole-post approvals', () => {
   for (const reason of ['news_media_account', 'government_account', 'institution_account']) {
     let review = withReviewOutcomes({ entries: { first: { ...entry('marketing', ['qualified']), account_rejection_reason: reason, account_source: 'identity' } }, total: 1, completed: 1 })

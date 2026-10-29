@@ -45,7 +45,7 @@ function PostDetail({ post }: { post: BrowsePost }) {
           {post.published_at && <span>{post.published_at}</span>}
           {post.nickname && <span>{post.nickname}</span>}
         </div>
-        {post.status === 'matched' && <p className="text-xs leading-6 text-cyber-text-secondary">{t(post.review_decision_source === 'manual' ? 'browse.manualConfirmedHint' : 'browse.manualReviewHint')}{(post.model_original_choice || post.jev_original_choice) && ` · ${t('browse.originalDecision', { choice: t(`browse.modelChoice.${post.model_original_choice || post.jev_original_choice}`, { defaultValue: post.model_original_choice || post.jev_original_choice }) })}`}</p>}
+        {post.status === 'matched' && <p className="text-xs leading-6 text-cyber-text-secondary">{t(post.review_decision_source === 'manual' ? 'browse.manualConfirmedHint' : post.selection_origin === 'review_policy' ? 'browse.candidateReviewHint' : 'browse.manualReviewHint')}{(post.model_original_choice || post.jev_original_choice) && ` · ${t('browse.originalDecision', { choice: t(`browse.modelChoice.${post.model_original_choice || post.jev_original_choice}`, { defaultValue: post.model_original_choice || post.jev_original_choice }) })}`}</p>}
         <details className="space-y-3 text-xs text-cyber-text-secondary"><summary className="cursor-pointer">{t('tasks.postMetadata')}</summary>
           <PostAccountMetadata post={post} /><PostLocationMetadata post={post} />
           <p>{t('browse.postId')}: <span className="font-mono">{post.id}</span></p>

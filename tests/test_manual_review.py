@@ -79,7 +79,7 @@ def test_download_recovery_preserves_human_mark_and_reset(collection, human):
 def test_collection_gate_cannot_be_overridden_but_keeps_human_marks(collection,reason,body):
     root,path,client=collection
     notes=json.loads(path.read_text(encoding='utf-8'))
-    notes[0].update(semantic_rule='evaluation', evaluation_evidence='公园雕塑真可爱', evaluation_target_evidence='公园雕塑真可爱', content=body,semantic_result='review',semantic_source='comments_unavailable',semantic_comment_stop_reason='comments_fetch_failed')
+    notes[0].update(semantic_rule='evaluation', evaluation_evidence='公园雕塑真可爱', evaluation_target_evidence='公园雕塑真可爱', content=body,semantic_result='matched' if reason == 'keyword_miss' else 'review',semantic_source='comments_unavailable',semantic_comment_stop_reason='comments_fetch_failed')
     path.write_text(json.dumps(notes,ensure_ascii=False),encoding='utf-8')
     change(client,decision='qualified')
     change(client,kind='post',decision='qualified')

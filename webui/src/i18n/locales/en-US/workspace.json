@@ -2,7 +2,7 @@
   "reviewExport": {
     "button": "Export Excel + approved images",
     "running": "Preparing package…",
-    "hint": "ZIP with retained posts, downloaded attachments, image mapping and missing-file notes.",
+    "hint": "Download a ZIP of retained posts (automatic passes or manual approvals), downloaded media, image mapping and missing-file notes. Text-only posts are supported.",
     "empty": "There are no retained posts to export.",
     "failed": "Package preparation failed. Stop collection/recognition and retry. Remove old packages if the three-package limit is reached.",
     "missingMain": "The selected semantic file has no main Excel. Restore it or select another collection.",
@@ -182,7 +182,7 @@
   "reviewFilter": "Human review status",
   "filters": {
     "all": "All posts",
-    "unmarked": "Review incomplete",
+    "unmarked": "Needs review",
     "qualified": "Retained",
     "unqualified": "Excluded"
   },
@@ -249,7 +249,8 @@
     "account_blocklist_media": "Media account exclusion list matched.",
     "account_blocklist_government": "Government account exclusion list matched.",
     "account_identity_uncertain": "Uncertain account identity; manual review required.",
-    "text_review_pending": "Check whether the evaluation describes the target, then confirm the post decision. Images are not a retention requirement."
+    "text_review_pending": "Check whether the evaluation describes the target, then confirm the post decision. Images are not a retention requirement.",
+    "semantic_passed": "Automatically passed; no additional approval is required. You can correct this decision."
   },
   "supplement": {
     "qrLoginRequired": "The saved session is missing or expired. Sign in on the configuration page before supplementing.",
@@ -343,5 +344,9 @@
   "imageOnlineFailed": "The online image may be expired or restricted by the platform. Retry or open the original post.",
   "imageUrlMissing": "No usable image URL was saved. Open the original post to view it.",
   "retryImage": "Reload image",
-  "postReviewInstructions": "Review the post content. After approval is saved, the next post opens automatically. The last post stays open."
+  "postReviewInstructions": "Review the post content. After approval is saved, the next post opens automatically. The last post stays open.",
+  "reviewQueueProgress": "{{pending}} posts need review · {{total}} posts in this task",
+  "noReviewNeeded": "No posts in this task need manual review.",
+  "noReviewNeededHint": "Automatically passed posts are retained without another approval. You can still view all posts and correct decisions.",
+  "viewAllPosts": "View all posts"
 }

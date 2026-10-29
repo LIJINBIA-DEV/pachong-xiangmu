@@ -2,7 +2,7 @@ import type { AISettings, AISettingsInput, ContentSummaryInfo, ContentSummaryInp
 import axios from 'axios'
 import type { BrowseResponse, ManualReviewResponse, ReviewDecision, AccountDecision, SupplementPlan, CollectionLogsResponse } from '@/types/dataBrowser'
 import type { CrawlerConfig as StartConfig } from '@/types/crawler'
-import type { CollectionProgress, DashboardSnapshot, DashboardPeriod } from '@/types/dashboard'
+import type { CollectionProgress, DashboardSnapshot, DashboardPeriod, DashboardOverview, OverviewPeriod } from '@/types/dashboard'
 
 const api = axios.create({
   baseURL: '/api',
@@ -158,8 +158,8 @@ export interface WeiboLoginStatus {
 
 // API functions
 export const crawlerApi = {
-  getSemanticSettings: () => api.get<{ key_configured: boolean }>('/crawler/semantic-settings'),
-  saveSemanticSettings: (input: { api_key?: string; clear_key?: boolean }) => api.put<{ key_configured: boolean }>('/crawler/semantic-settings', input),
+  getSemanticSettings: () => api.get<{ key_configured: boolean; model?: string }>('/crawler/semantic-settings'),
+  saveSemanticSettings: (input: { api_key?: string; clear_key?: boolean; model?: string }) => api.put<{ key_configured: boolean; model?: string }>('/crawler/semantic-settings', input),
   getQRLogin: (platform: 'wb' | 'xhs') => api.get<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`),
   startQRLogin: (platform: 'wb' | 'xhs', refresh = false, loginEnvironment: StartConfig['login_environment'] = 'auto') => api.post<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`, { refresh, login_environment: loginEnvironment }),
   cancelQRLogin: (platform: 'wb' | 'xhs') => api.delete<WeiboLoginStatus>(`/crawler/${platform === 'wb' ? 'weibo' : 'xhs'}-login`),
@@ -184,6 +184,7 @@ export const dataApi = {
   getPostExportUrl: (file: string, status: string) => `/api/data/export?${new URLSearchParams({ file, status })}`,
   getCollectionProgress: () => api.get<CollectionProgress>('/dashboard/progress'),
   getDashboard: (period: DashboardPeriod = 'task', start?: string, end?: string) => api.get<DashboardSnapshot>('/dashboard', { params: { period, start, end } }),
+  getDashboardOverview: (params: { period: OverviewPeriod; start?: string; end?: string; task_id?: string; platform?: string }) => api.get<DashboardOverview>('/dashboard/overview', { params }),
   getCollectionLogs: (file: string) => api.get<CollectionLogsResponse>('/data/collection-logs', { params: { file } }),
   getSupplement: (file: string) => api.get<SupplementPlan>('/data/supplement', { params: { file } }),
   supplement: (file: string, target?: number, config?: StartConfig, api_key?: string, cookies?: string) => api.post<SupplementPlan>('/data/supplement', { file, target, config, api_key, cookies }),

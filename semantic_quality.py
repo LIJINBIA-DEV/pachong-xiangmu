@@ -75,7 +75,7 @@ def saved_collection_rejection(note, comments=()):
     """Enforce collection eligibility independently of human image/account marks."""
     if note.get('semantic_rule') not in {'evaluation', 'topic'} or note.get('semantic_result') not in {'matched', 'review', 'pending', 'excluded', 'duplicate'}:
         return None
-    if not keyword_pair_present(note, comments):
+    if note.get('semantic_result') not in {'review', 'pending'} and not keyword_pair_present(note, comments):
         return 'keyword_miss'
     if ('comments_fetch_failed' in {note.get('semantic_comment_stop_reason'), note.get('comments_collection_stop_reason')}
             or note.get('semantic_source') == 'comments_unavailable'):

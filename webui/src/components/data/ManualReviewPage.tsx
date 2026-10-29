@@ -44,8 +44,8 @@ export function ManualReviewPage({ fileRequest }: { fileRequest?: { file: string
   const queryClient = useQueryClient()
   const [chosenFile, setChosenFile] = useState(() => readPreference('mediacrawler_review_file'))
   const [selectedKey, setSelectedKey] = useState(() => readPreference('mediacrawler_review_post'))
-  const [filter, setFilter] = useState('all')
-  useEffect(() => { if (fileRequest) { setChosenFile(fileRequest.file); setSelectedKey(fileRequest.postKey || ''); setFilter('all') } }, [fileRequest])
+  const [filter, setFilter] = useState('unmarked')
+  useEffect(() => { if (fileRequest) { setChosenFile(fileRequest.file); setSelectedKey(fileRequest.postKey || ''); setFilter(fileRequest.postKey ? 'all' : 'unmarked') } }, [fileRequest])
   const contentRef = useRef<HTMLElement>(null)
   const contextRef = useRef<HTMLDivElement>(null)
   const [lastChange, setLastChange] = useState<Change | null>(null)
@@ -107,6 +107,7 @@ export function ManualReviewPage({ fileRequest }: { fileRequest?: { file: string
   const review = reviewQuery.data && pendingChange ? applyReviewChange(reviewQuery.data, pendingChange) : reviewQuery.data
   const reviewComplete = !!review?.total && review.completed === review.total
   const allKeys = Object.keys(review?.entries || {})
+  const pendingCount = allKeys.filter(key => !review?.entries[key].decision).length
   const keys = allKeys.filter((key) => key === pendingChange?.key || filter === 'all' || (filter === 'unmarked' ? !review?.entries[key].decision : review?.entries[key].decision === filter))
   const currentKey = keys.includes(selectedKey) ? selectedKey : keys[0] || ''
   const index = keys.indexOf(currentKey)
@@ -147,7 +148,7 @@ export function ManualReviewPage({ fileRequest }: { fileRequest?: { file: string
   const loading = filesQuery.isLoading || (!!currentFile && reviewQuery.isLoading) || (!!currentKey && postQuery.isLoading)
   return <div className="manual-review-page" aria-label={t('pages.review')}>
     <header className="review-page-heading">
-      <div className="review-heading-progress"><h1>{t('pages.review')}</h1><p aria-live="polite">{t('progress', { completed: review?.completed || 0, total: review?.total || 0 })}</p></div>
+      <div className="review-heading-progress"><h1>{t('pages.review')}</h1><p aria-live="polite">{t('reviewQueueProgress', { pending: pendingCount, total: review?.total || 0 })}</p></div>
       <span className="review-save-state" aria-live="polite">{save.isPending ? t('saving') : save.isError ? t('saveFailedShort') : save.isSuccess ? t('saved') : ''}</span>
       <Button variant="outline" size="sm" title={t('reviewExport.hint')} disabled={save.isPending || save.isError || exportBusy || !review || !Object.values(review.entries).some((item) => item.decision === 'qualified')} onClick={() => exportResult.mutate(currentFile)}><Download className="h-4 w-4" />{t(exportBusy ? 'reviewExport.running' : 'reviewExport.button')}</Button>
       <span>{t('currentPost', { index: index + 1, total: keys.length })}</span>
@@ -175,7 +176,7 @@ export function ManualReviewPage({ fileRequest }: { fileRequest?: { file: string
       </div>)}
     </details>}
     <div className="review-toolbar">
-      <label>{t('batch')}<select aria-label={t('batch')} className={controlClass} value={currentFile} disabled={save.isPending} onChange={(event) => { setChosenFile(event.target.value); setSelectedKey(''); save.reset() }}><option value="" disabled>{t('chooseBatch')}</option>{reviewTasks.map((task) => <option key={task.id} value={task.primary_file}>{taskLabel(task, td)}</option>)}</select></label>
+      <label>{t('batch')}<select aria-label={t('batch')} className={controlClass} value={currentFile} disabled={save.isPending} onChange={(event) => { setChosenFile(event.target.value); setSelectedKey(''); setFilter('unmarked'); save.reset() }}><option value="" disabled>{t('chooseBatch')}</option>{reviewTasks.map((task) => <option key={task.id} value={task.primary_file}>{taskLabel(task, td)}</option>)}</select></label>
       <label>{t('reviewFilter')}<select aria-label={t('reviewFilter')} className={controlClass} value={filter} disabled={save.isPending} onChange={(event) => setFilter(event.target.value)}>{['all', 'unmarked', 'qualified', 'unqualified'].map((item) => <option key={item} value={item}>{t(`filters.${item}`)}</option>)}</select></label>
       <Button variant="outline" onClick={refreshReview} disabled={save.isPending || !currentFile}><ReviewIcon name="refresh" />{t('rescan')}</Button>
     </div>
@@ -183,7 +184,10 @@ export function ManualReviewPage({ fileRequest }: { fileRequest?: { file: string
     {save.isError && <div role="alert" className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-red-400/50 p-3 text-sm text-cyber-text-primary"><span>{t(backendOutdated ? 'reviewBackendOutdated' : 'saveFailed')}</span><Button variant="outline" size="sm" onClick={() => lastChange && save.mutate(lastChange)}>{t('retry')}</Button></div>}
     {loading ? <div role="status" className="flex-1 space-y-4 rounded-xl bg-cyber-bg-panel p-6"><div className="h-6 w-2/3 animate-pulse rounded bg-cyber-bg-tertiary" /><div className="h-48 animate-pulse rounded bg-cyber-bg-tertiary" /><p className="text-sm text-cyber-text-secondary">{t('loading')}</p></div>
       : error ? <div role="alert" className="space-y-4 p-6 text-sm text-cyber-text-primary"><p>{t('loadFailed')}</p><Button variant="outline" onClick={refreshReview}>{t('retry')}</Button></div>
-      : !currentFile || !post || !entry ? <div className="flex flex-1 items-center justify-center p-6 text-center text-sm leading-7 text-cyber-text-secondary">{t(!currentFile ? 'noData' : 'noMatches')}</div>
+      : !currentFile || !post || !entry ? <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm leading-7 text-cyber-text-secondary">
+        <p>{t(!currentFile ? 'noData' : filter === 'unmarked' && pendingCount === 0 ? 'noReviewNeeded' : 'noMatches')}</p>
+        {!!currentFile && filter === 'unmarked' && pendingCount === 0 && <><p>{t('noReviewNeededHint')}</p><Button variant="outline" onClick={() => setFilter('all')}>{t('viewAllPosts')}</Button></>}
+      </div>
       : <>
         <article ref={contentRef} className="review-work-area" aria-label={t('postPreview')}>
           <div ref={contextRef} className="review-context">
@@ -206,7 +210,7 @@ export function ManualReviewPage({ fileRequest }: { fileRequest?: { file: string
         <footer className="review-footer">
           <div className="review-footer-label"><span>{t('postDecision')}</span><span className={`review-state ${entry.decision === 'qualified' ? 'review-state-positive' : entry.decision === 'unqualified' ? 'review-state-negative' : ''}`}>{t(`outcomes.${entry.decision || 'pending'}`)}</span></div>
           <div role="group" aria-label={t('postDecision')}><Choices value={entry.decision} positive={t('postQualified')} negative={t('postUnqualified')} disabled={save.isPending || !!entry.semantic_rejection_reason || !!entry.account_rejection_reason} onChange={(value) => change('post', value)} canReset={entry.decision_source === 'manual'} resetLabel={t('resetPostDecision')} /></div>
-          <p role="status" className="review-footer-reason">{entry.semantic_rejection_reason || entry.account_rejection_reason ? t(`outcomeReasons.${entry.decision_reason}`) : t('postReviewInstructions')}</p>
+          <p role="status" className="review-footer-reason">{entry.semantic_rejection_reason || entry.account_rejection_reason || entry.decision_reason === 'semantic_passed' ? t(`outcomeReasons.${entry.decision_reason}`) : t('postReviewInstructions')}</p>
           <div className="review-pagination"><Button variant="outline" size="sm" disabled={save.isPending || index <= 0} onClick={() => setSelectedKey(keys[index - 1])} aria-label={t('previous')}><ReviewIcon name="previous" /></Button><span>{index + 1} / {keys.length}</span><Button variant="outline" size="sm" disabled={save.isPending || index >= keys.length - 1} onClick={() => setSelectedKey(keys[index + 1])} aria-label={t('next')}><ReviewIcon name="next" /></Button></div>
         </footer>
       </>}
